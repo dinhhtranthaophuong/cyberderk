@@ -1,769 +1,147 @@
-# ARCHITECTURE.md: Cyberdeck ESP32-S3
+# Cyberdeck ESP32-S3
 
-> Tài liệu "hợp đồng" chung cho mọi chat/app. Chat nào cũng phải tuân theo.
-> Nếu cần đổi API hoặc header chung: **báo trước, sửa file này, rồi mới sửa code.**
-> Đọc kèm `concept.md` và `instruction.md`.
+Thiết bị **Cyberdeck cá nhân** nhỏ gọn chạy trên vi điều khiển **ESP32-S3**, gồm màn hình TFT màu, bàn phím cơ **3x3** để điều hướng và thẻ nhớ microSD chứa ảnh, nhạc. Giao diện viết bằng **LVGL**, firmware phát triển bằng **VS Code + PlatformIO**.
 
-**Trạng thái:** Chat 0 (Core + hạ tầng) được làm lại từ đầu theo từng bước, bước 1-5 đã chạy trên board: TFT + LVGL, phím qua serial, AppManager + launcher, bàn phím 3x3 thật, và bước 5 (màn ST7789 2.8", theme, bảng đăng ký app, Settings). Bước 6 (thẻ SD: mount đã chạy trên board, `services/sd_storage` đã viết, test trên máy tính và chạy đúng trên board). Còn các service/app khác (mục 8). Chat 3 (Image service + Album) xong và chạy đúng trên board. Chat 4 (Slideshow widget) xong về mặt code, đã build được. Chat 5 (Audio service + Music Player) xong và chạy đúng trên board: phát MP3 từ SD qua I2S, đĩa quay có ảnh, âm lượng, playlist, đã test trên board. Chat 6 (Visualizer) xong và chạy ổn trên board: FFT 256 điểm + VisualizerApp với 3 kiểu hiệu ứng (thanh phổ đối xứng ở giữa, waveform, thanh đối xứng hai viền), phím 7/9 đổi kiểu, 4/6 chỉnh dạng.
+## Tính năng
 
----
+Giao diện gồm một màn hình chính và các ứng dụng:
 
-## 1. Phần cứng đã chốt
+| Ứng dụng | Mô tả | Trạng thái |
+|---|---|---|
+| **Main Screen** | Nửa trái: khung ảnh (chọn từ Album) kèm đồng hồ, ngày tháng. Nửa phải: lưới icon 2x3 gồm các app người dùng chọn và ô Settings | Xong |
+| **Pet** | Thú ảo (mèo pixel): cho ăn, chơi, tắm, ngủ, đổi màu lông; có chu kỳ ngày/đêm, hoạt ảnh chớp mắt, vẫy đuôi | Xong |
+| **Music Player** | Phát MP3 từ thẻ SD qua I2S ra loa; đĩa quay có ảnh, playlist, tua, chỉnh âm lượng | Xong |
+| **Visualizer** | Hiển thị phổ/sóng âm thời gian thực bằng FFT 256 điểm, 3 kiểu hiệu ứng | Xong |
+| **Album** | Lưới thumbnail ảnh JPG từ thẻ SD, xem toàn màn hình, đặt ảnh làm ảnh widget Main Screen | Xong |
+| **Settings** | Chọn theme giao diện, chọn app hiển thị trên Main Screen (lưu vào flash NVS) | Xong |
+| **Calendar** | Lịch tháng dạng lưới, đánh dấu sự kiện | Chưa viết |
 
-| Hạng mục | Chọn |
+Ngoài ra có **3 theme** (`pink` mặc định, `night`, `mint`), mỗi theme có bộ icon pixel art riêng (64x64).
+
+## Phần cứng
+
+| Hạng mục | Linh kiện |
 |---|---|
-| MCU | ESP32-S3 DevKitC-1 **N16R8** (16MB flash quad, 8MB PSRAM octal) |
-| Màn hình | **Đang dùng: ST7789 2.8" 240x320** (320x240 khi xoay ngang), không cảm ứng. Dự phòng: ST7735S 1.8" (160x128). Cấu hình màu riêng của module này ở mục 3.1 |
-| microSD | Module SPI + thẻ 8GB FAT32 (đã đấu và mount được, đọc khoảng 1,5 MB/s). Bus riêng, không chung với TFT |
-| Audio | MAX98357A (I2S) + loa 4Ω 3W, mono (đã chạy trên board), chân SD của module phải nối 3V3 (để hở thì amp bị tắt, loa im); chân GAIN để hở (9 dB) |
-| Input | 9 công tắc cơ ma trận 3x3, không cần diode (đã chạy) |
-| RTC | DS3231 (I2C), có thể đồng bộ NTP khi có WiFi (đã có, chưa thử) |
+| MCU | ESP32-S3 DevKitC-1 **N16R8** (16 MB flash, 8 MB PSRAM octal) |
+| Màn hình | ST7789 2.8" 240x320 (xoay ngang 320x240), không cảm ứng. Dự phòng: ST7735S 1.8" |
+| Lưu trữ | Module microSD (SPI, bus riêng), thẻ FAT32 |
+| Âm thanh | MAX98357A (I2S) + loa 4 Ω 3 W, mono |
+| Bàn phím | 9 công tắc cơ ma trận 3x3, không cần diode |
+| RTC | DS3231 (I2C), đã có phần cứng, chưa tích hợp phần mềm |
 
-### 1.1 Chân bị cấm trên N16R8
-GPIO 26-37 (flash/PSRAM), 0/3/45/46 (strapping), 19/20 (USB), 43/44 (UART0).
+### Sơ đồ chân
 
-### 1.2 Bảng gán chân (nguồn sự thật duy nhất: `config/pins.hpp`)
+Nguồn sự thật duy nhất là `src/config/pins.hpp`.
 
 | Thiết bị | Tín hiệu | GPIO |
 |---|---|---|
-| TFT (FSPI/SPI2) | SCLK / MOSI / CS | 12 / 11 / 10 |
+| TFT (SPI2/FSPI) | SCLK / MOSI / CS | 12 / 11 / 10 |
 | | DC / RST / BL | 9 / 8 / 7 |
-| microSD (HSPI/SPI3) | SCK / MOSI / MISO / CS | 15 / 16 / 17 / 18 |
+| microSD (SPI3/HSPI) | SCK / MOSI / MISO / CS | 15 / 16 / 17 / 18 |
 | I2S MAX98357A | BCLK / LRC / DIN | 4 / 5 / 6 |
 | Keypad hàng (output) | R1 / R2 / R3 | 38 / 39 / 40 |
 | Keypad cột (input pull-up) | C1 / C2 / C3 | 41 / 42 / 21 |
 | I2C (DS3231) | SDA / SCL | 1 / 2 |
-| Dự phòng | | 47, 48 |
 
-`config/pins.hpp` có `static_assert` so khớp các chân TFT với `build_flags`, đổi chân TFT phải đổi cả hai nơi. Chân đèn nền TFT (GPIO 7) do code điều khiển, không truyền cho TFT_eSPI. Màn ST7789 đang dùng nối chân LED vào 3V3 (đèn nền luôn sáng), GPIO 7 bỏ trống. Sơ đồ nối màn: `docs/st7789_wiring.svg`.
+Lưu ý khi đấu dây:
+- Chân **SD của MAX98357A phải nối 3V3**, để hở thì amp tắt và loa im.
+- Chân LED (đèn nền) của màn ST7789 nối thẳng 3V3.
+- Các chân không được dùng trên N16R8: GPIO 26-37, 0/3/45/46, 19/20, 43/44.
+- Sơ đồ nối dây nằm trong thư mục `docs/` (bàn phím, màn ST7789, module SD).
 
-**I2S:** `Pins::I2sBclk/I2sLrc/I2sDin` = 4/5/6 nằm trong `config/pins.hpp` (đã có trong `static_assert` kiểm tra không trùng GPIO nào khác); code audio phải lấy chân từ đây, không hardcode. **Chân SD của module MAX98357A phải nối 3V3**: để hở thì amp bị tắt và loa im (không báo lỗi gì). Chân GAIN để hở (9 dB).
+## Kiến trúc phần mềm
 
-> **Lưu ý SPI host:** `sd_storage.cpp` dùng `SPIClass(HSPI)`. TFT_eSPI 2.5.43 trên ESP32-S3 mặc định dùng host FSPI (SPI2), nên SD ở HSPI (SPI3) không trùng. Nếu vẫn có lỗi khởi tạo, treo hoặc màn hình nhiễu khi bật SD, thêm `-DUSE_FSPI_PORT` hoặc `-DUSE_HSPI_PORT` vào `build_flags` cho đúng phiên bản TFT_eSPI/Arduino core đang dùng.
+- **Framework:** Arduino core cho ESP32 (PlatformIO), `espressif32@6.5.0`
+- **Đồ họa:** LVGL 8.3.11 + TFT_eSPI 2.5.43, giải mã JPG bằng TJpg_Decoder, giải mã MP3 bằng minimp3
+- **Đa luồng (FreeRTOS):** Core 1 chạy giao diện LVGL và xử lý phím; Core 0 chạy đọc SD, giải mã ảnh/âm thanh và tác vụ nền
+- **Mẫu thiết kế:** lập trình hướng đối tượng theo module, điều phối bằng máy trạng thái hữu hạn (`AppManager`), mỗi app là một `IApp`
+- **Bộ nhớ:** mọi buffer lớn (ảnh, audio, heap LVGL) cấp phát trong PSRAM
 
----
+> Phiên bản thư viện được **ghim cố ý**: TFT_eSPI lỗi `tft.init()` trên ESP32-S3 với Arduino core mới (Bodmer/TFT_eSPI #3346). Không nâng cấp khi chưa kiểm tra lại.
 
-## 2. Cấu trúc thư mục
+### Cấu trúc thư mục
 
 ```
 platformio.ini
-docs/
-  keypad_wiring.svg/.png   // sơ đồ nối bàn phím 3x3
-  st7789_wiring.svg/.png   // sơ đồ nối màn ST7789
-  sd_wiring.svg/.png       // sơ đồ nối module microSD (chỉ để xem)
-tools/
-  sd_test/sd_test.cpp      // sketch test thẻ SD riêng, build bằng env sd_test (không thuộc firmware chính)
-  image_test/image_resize_test.cpp  // test máy tính cho image_resize (g++ + ASan, lệnh chạy ghi đầu file)
-  i2s_test/i2s_test.cpp    // test bíp 440 Hz, env i2s_test
-  fft_test/fft_test.cpp    // test máy tính cho fft (g++ + ASan + UBSan, lệnh chạy ghi đầu file)
-  visualizer_test/         // test máy tính cho VisualizerApp bằng STUB LVGL (stubs/), không phải LVGL thật
+docs/           sơ đồ nối dây
+tools/          sketch/test phần cứng và test trên máy tính (sd, i2s, fft, image, visualizer)
 src/
   main.cpp
-  lv_conf.h             // cấu hình LVGL (heap trong PSRAM, tick = millis())
-  config/
-    pins.hpp            // bảng chân ở trên
-    display.hpp         // SCREEN_W/H và hằng số suy ra
-    keymap.hpp          // quy ước phím (mục 4)
-  core/
-    app_base.hpp        // interface IApp + AppId
-    app_factories.hpp   // khai báo factory (weak) của 7 app (mục 6.9)
-    app_manager.hpp/.cpp// FSM
-    app_registry.hpp/.cpp // bảng đăng ký app: khóa, tên, icon, factory, chọn hiển thị (mục 6.10)
-    theme.hpp/.cpp      // theme giao diện (mục 6.11)
-    lvgl_port.hpp/.cpp  // TFT<->LVGL, task LVGL, LvglLock
-    psram.hpp/.cpp      // wrapper cấp phát PSRAM
-  assets/
-    icons/ 
-      icons.hpp/.cpp (Icons::get), icons_gen.hpp + icons_t0/t1/t2.cpp 
-  services/
-    input_service.hpp/.cpp
-    keypad_matrix.hpp/.cpp       // quét ma trận 3x3
-    settings_store.hpp/.cpp      // lưu cài đặt vào flash NVS (mục 6.12)
-    sd_storage.hpp/.cpp   // thẻ SD: mount, liệt kê, đọc/ghi, Reader (mục 6.5)
-    image_service.hpp/.cpp
-    image_resize.hpp/.cpp   // tính toán thuần của ImageService (fitInside, chọn scale JPG, box filter), test được trên máy tính
-    audio_service.hpp/.cpp
-    time_service.hpp/.cpp
-    slideshow_service.hpp/.cpp  // ảnh đại diện Main Screen: giải mã 1 ảnh ở Core 0, cache PSRAM (mục 6.13)
-  apps/
-    main_screen/  main_screen.hpp/.cpp (+ slideshow_widget.hpp/.cpp)
-    settings/     settings_app.cpp (chọn theme, chọn app hiện trên Main Screen)
-    album/        album_app.hpp/.cpp, disc_cover.hpp/.cpp (ảnh mặt đĩa)
-    music/        music_app.hpp/.cpp
-    visualizer/   visualizer_app.hpp/.cpp, fft.hpp/.cpp (FFT thuần, test được trên máy tính)
-    calendar/     calendar_app.hpp/.cpp
-    pet/          pet_app, pet_state, pet_types, pet_art (dữ liệu pixel thuần), pet_pixel, pet_sprite, pet_icons, pet_disc, pet_background
-  lib/
-    minimp3/
-      minimp3.h
+  lv_conf.h
+  config/       pins, display, keymap
+  core/         AppManager, AppRegistry, Theme, LVGL port, PSRAM
+  assets/icons/ bộ icon pixel art theo theme
+  services/     input, keypad, settings_store, sd_storage,
+                image, audio, slideshow, time
+  apps/         main_screen, settings, album, music,
+                visualizer, calendar, pet
+  lib/minimp3/
 ```
 
-**Quy tắc vàng:**
-1. App **chỉ gọi service**, không tự đụng SPI/SD/I2S/I2C.
-2. Mỗi app chỉ viết trong `apps/<tên>/`. Không sửa `core/` và `services/` trừ khi chat đó được giao.
-3. Mỗi cặp `.hpp` + `.cpp` riêng cho từng module. Không `delay()`; dùng `millis()` hoặc `vTaskDelay()`.
-4. Include theo gốc `src/` (đã có `-Isrc`): `#include "core/psram.hpp"`, `#include "config/pins.hpp"`.
-5. **Màu giao diện chỉ lấy từ `Themes::current()`** (mục 6.11), không ghi mã hex trực tiếp trong app. Nhờ vậy thêm theme không phải sửa app. Màu của hình ảnh cố định (lông mèo Pet, nền ngày/đêm của Pet) không thuộc theme.
+Nguyên tắc chính: app **chỉ gọi service**, không tự đụng SPI/SD/I2S/I2C; không dùng `delay()`; màu giao diện chỉ lấy từ `Themes::current()`; mỗi module tách riêng `.hpp` và `.cpp`.
 
----
+Thêm app mới chỉ cần 3 việc: thêm giá trị vào `AppId`, khai báo factory trong `app_factories.hpp`, thêm một dòng vào bảng `kInfos` trong `app_registry.cpp`.
 
-## 3. Cấu hình màn hình
-
-### 3.1 `platformio.ini`
-
-Phiên bản được **ghim cố ý**: TFT_eSPI lỗi `tft.init()` trên ESP32-S3 với Arduino core mới (Bodmer/TFT_eSPI #3346). `espressif32@6.5.0` dùng Arduino core 2.0.14. Không nâng cấp khi chưa test lại `tft.init()`. PlatformIO không hỗ trợ comment cùng dòng với giá trị, nên mọi comment đặt ở dòng riêng.
-
-```ini
-[platformio]
-default_envs = cyberdeck_st7789
-
-[env]
-platform = espressif32@6.5.0
-board = esp32-s3-devkitc-1
-framework = arduino
-board_build.arduino.memory_type = qio_opi
-board_upload.flash_size = 16MB
-board_build.partitions = default_16MB.csv
-monitor_speed = 115200
-monitor_filters = esp32_exception_decoder
-build_flags =
-  -DBOARD_HAS_PSRAM
-  -DARDUINO_USB_CDC_ON_BOOT=1
-  -DUSER_SETUP_LOADED=1
-  -DTFT_MOSI=11
-  -DTFT_SCLK=12
-  -DTFT_CS=10
-  -DTFT_DC=9
-  -DTFT_RST=8
-  -DTFT_MISO=-1
-  -DLOAD_GLCD=1
-  -DLOAD_FONT2=1
-  -DSMOOTH_FONT=0
-  -DLV_CONF_INCLUDE_SIMPLE
-  -DLV_LVGL_H_INCLUDE_SIMPLE
-  -Isrc
-lib_deps =
-  bodmer/TFT_eSPI@2.5.43
-  lvgl/lvgl@8.3.11
-  bodmer/TJpg_Decoder@1.1.0
-
-; Phần chung của màn ST7735S 1.8" (160x128 khi xoay ngang). Không phải env.
-[tft_st7735]
-build_flags =
-  -DST7735_DRIVER
-  -DTFT_WIDTH=128
-  -DTFT_HEIGHT=160
-  -DSPI_FREQUENCY=27000000
-  -DSCREEN_W=160
-  -DSCREEN_H=128
-
-; Phần chung của màn ST7789 2.8" (240x320, xoay ngang = 320x240). Không phải env.
-[tft_st7789]
-build_flags =
-  -DST7789_DRIVER
-  -DTFT_WIDTH=240
-  -DTFT_HEIGHT=320
-  -DSPI_FREQUENCY=40000000
-  -DSCREEN_W=320
-  -DSCREEN_H=240
-
-; Env mặc định: màn ST7789 2.8". Module này bị đổi chỗ đỏ/xanh dương nên cần TFT_BGR.
-; Đảo màu (inversion) xử lý trong lvgl_port.cpp bằng tft.invertDisplay(false), không dùng cờ build.
-[env:cyberdeck_st7789]
-build_flags =
-  ${env.build_flags}
-  ${tft_st7789.build_flags}
-  -DTFT_RGB_ORDER=TFT_BGR
-
-; Env màn ST7735S 1.8" (dự phòng), thử BLACKTAB trước.
-[env:cyberdeck_st7735]
-build_flags =
-  ${env.build_flags}
-  ${tft_st7735.build_flags}
-  -DST7735_BLACKTAB
-
-; Env để thử tab màu khác nếu hình lệch/sai màu: tab_red, tab_green, tab_green2, tab_green3
-; (cùng cấu trúc, chỉ đổi -DST7735_REDTAB / GREENTAB / GREENTAB2 / GREENTAB3).
-```
-
-**Cấu hình đã chốt của màn ST7789 đang dùng:** `-DTFT_RGB_ORDER=TFT_BGR` trong env và `tft.invertDisplay(false);` ngay sau `tft.init();` trong `core/lvgl_port.cpp` (hằng số `true`/`false` phụ thuộc module; ở module này là `false`). Cờ `-DTFT_INVERSION_ON` không dùng.
-
-**Cách dò khi đổi module màn hình:** chèn tạm vào `lvgl_port.cpp` sau `tft.fillScreen(TFT_BLACK);` đoạn tô lần lượt đỏ, xanh lá, xanh dương, trắng, đen (mỗi màu 1 giây) rồi đối chiếu: trắng/đen đổi chỗ (và các màu thành màu bù) nghĩa là đảo sai chiều, đổi `invertDisplay(true/false)`; đỏ và xanh dương đổi chỗ nghĩa là thiếu/thừa `TFT_RGB_ORDER=TFT_BGR`; hình nhiễu, lệch, lật gương thì nghi sai driver (module 2.8" phổ biến cũng có thể là ILI9341: đổi `ST7789_DRIVER` thành `ILI9341_DRIVER`). Hình nhiễu do dây dài: hạ `SPI_FREQUENCY` xuống 27000000. Hình bị ngược đầu: đổi `setRotation(1)` thành `3`. Nếu module không có chân CS thì `-DTFT_CS=-1`.
-
-### 3.2 `config/display.hpp`
-
-```cpp
-#pragma once
-// SCREEN_W / SCREEN_H đến từ build_flags
-constexpr int UI_W = SCREEN_W;
-constexpr int UI_H = SCREEN_H;
-constexpr bool UI_COMPACT = (SCREEN_W < 240);        // true với 160x128
-constexpr int  GRID_COLS = 2;
-constexpr int  GRID_ROWS = 3;                        // lưới app 2 cột x 3 hàng (theo mockup)
-constexpr int  ICON_SIZE = UI_COMPACT ? 28 : 56;
-constexpr int  LVGL_BUF_LINES = UI_H / 10;           // buffer 1/10 màn hình
-```
-
-**Quy ước UI:** không ghi cứng pixel; dùng `lv_pct()`, flex/grid của LVGL và các hằng số ở trên. Ảnh/asset resize sẵn đúng độ phân giải trên PC. Font mặc định Montserrat 12 (nhỏ nhưng đã được chọn giữ trên màn 320x240); chỗ cần chữ lớn hơn (tiêu đề, đồng hồ) thì thêm cỡ 16/20 riêng ở chỗ đó.
-
-### 3.3 `lv_conf.h`
-Đặt ở `src/lv_conf.h`. Điểm chính: `LV_COLOR_DEPTH 16`, `LV_COLOR_16_SWAP 0` (đảo byte làm ở `flush_cb` bằng `pushColors(..., true)`), heap LVGL trong PSRAM (`LV_MEM_CUSTOM` + `heap_caps_malloc(MALLOC_CAP_SPIRAM)`), tick = `millis()`, chu kỳ đọc input 10 ms, font Montserrat 12 (mặc định) và 14, thêm cỡ khác khi cần. Các tuỳ chọn không khai báo lấy mặc định của `lv_conf_internal.h`.
-
----
-
-## 4. Quy ước phím 3x3
+## Điều khiển
 
 ```
  ┌───┬───┬───┐
- │ 1 │ 2 │ 3 │      1 = BACK    2 = UP     3 = OPTION
- ├───┼───┼───┤      4 = LEFT    5 = ENTER  6 = RIGHT
- │ 4 │ 5 │ 6 │      7 = PREV    8 = DOWN   9 = NEXT
+ │ 1 │ 2 │ 3 │    1 = Back      2 = Lên     3 = Option
+ ├───┼───┼───┤    4 = Trái      5 = Enter   6 = Phải
+ │ 4 │ 5 │ 6 │    7 = Prev      8 = Xuống   9 = Next
  ├───┼───┼───┤
- │ 7 │ 8 │ 9 │      Giữ phím 1 (>= 800 ms) = HOME (về MAIN_SCREEN)
+ │ 7 │ 8 │ 9 │    Giữ phím 1 (>= 800 ms) = Home (về Main Screen)
  └───┴───┴───┘
 ```
 
-| Phím | Mã LVGL / custom | Ý nghĩa chung |
-|---|---|---|
-| 2 / 8 / 4 / 6 | `LV_KEY_UP/DOWN/LEFT/RIGHT` | Điều hướng |
-| 5 | `LV_KEY_ENTER` | Chọn / xác nhận |
-| 1 | `LV_KEY_ESC` | Quay lại (thoát app khi ở màn gốc của app) |
-| 7 / 9 | `LV_KEY_PREV` / `LV_KEY_NEXT` | Phím phụ (trang trước/sau, đổi chế độ); LVGL tự dời focus tuần tự |
-| 3 | `KEY_OPTION` (= `0x2001`) | Menu phụ của app (tùy app) |
-| Giữ 1 | `KEY_HOME` (= `0x2002`) | Về Main Screen từ bất kỳ app nào |
+Ngoài bàn phím thật, có thể gõ `1`..`9` (và `h` để giả lập giữ phím 1) trong Serial Monitor để thử khi chưa đấu phím.
 
-`keymap.hpp` định nghĩa `KEY_OPTION`, `KEY_HOME`, `KEY_HOME_HOLD_MS` và `keyForNumber()`. `InputService` đẩy phím vào `lv_indev` (loại `LV_INDEV_TYPE_KEYPAD`) trong `read_cb` (chu kỳ 10 ms). Hai phím cùng lúc: bỏ qua, nên không cần diode.
+## Chuẩn bị thẻ SD
 
-**Bàn phím thật (`services/keypad_matrix`):** hàng GPIO 38/39/40 là output, cột GPIO 41/42/21 là `INPUT_PULLUP`, đấu theo `docs/keypad_wiring.svg`. Lúc rảnh mọi hàng kéo LOW và ngắt FALLING trên 3 cột chỉ bật một cờ, `poll()` chỉ đọc cờ đó (không đụng GPIO). Khi có phím: huỷ ngắt, quét mỗi 5 ms với hàng không quét ở high-Z (không bao giờ nối tắt hai hàng), chống dội 2 lần quét giống nhau, thả hết thì quay lại trạng thái ranh. Phím giữ lúc khởi động và phím còn lại sau khi nhấn nhiều phím đều bị bỏ qua tới khi thả hết.
+Format thẻ **FAT32** bằng *SD Card Formatter* (format nhanh của Windows có thể gây lỗi `no valid FAT volume`). Cấu trúc thư mục:
 
-**Nguồn phím:** bàn phím ma trận thật và Serial Monitor chạy song song, cùng đi qua `route()` trong `input_service.cpp`. Gõ `1`..`9` tạo đúng phím tương ứng, gõ `h` giả lập giữ phím 1 (HOME). Build với `-DKEYPAD_DEBUG=1` để in mã phím của bàn phím thật ra serial.
-
-**Hành vi hai phím đặc biệt:**
-- **Phím 1:** nhấn ngắn → gửi một xung `LV_KEY_ESC` khi **nhả** phím; giữ >= 800 ms → gửi `KEY_HOME` một lần và **không** gửi ESC.
-- **Phím 3:** không đi vào `lv_indev`; gửi `KEY_OPTION` một lần mỗi lần nhấn, qua `AppManager::postKey()`.
-
-**Trong app:**
-- **Phím mũi tên không tự dời focus trong LVGL 8.3** (chỉ `LV_KEY_NEXT`/`LV_KEY_PREV` tự dời). Chúng chỉ đến widget dưới dạng `LV_EVENT_KEY`, nên mỗi app tự xử lý. Mẫu điều hướng lưới quay vòng ở mép: `moveFocus()` trong `apps/main_screen/main_screen.cpp`. Mẫu danh sách dọc: `lv_group_focus_prev/next(InputService::defaultGroup())` trong `apps/settings/settings_app.cpp`.
-- `LV_KEY_ESC` cũng đi vào LVGL: app tự xử lý `LV_EVENT_KEY` với `LV_KEY_ESC` (thoát về màn gốc của app hoặc `AppManager::goHome()`). Màn thay thế do AppManager dựng cho app chưa viết tự về Main khi nhận ESC.
-- `KEY_OPTION` tới `IApp::onKey()`. `KEY_HOME` do AppManager xử lý trước, app không nhận.
-
----
-
-## 5. Mô hình đa luồng
-
-| Core | Chạy gì |
-|---|---|
-| **Core 1** | Task LVGL (`lv_timer_handler` mỗi ~5 ms, stack 12 KB, ưu tiên 2), InputService (trong read_cb), `loop()` gọi `AppManager::tick` |
-| **Core 0** | Task SD/ảnh, Task audio (decode + I2S), task NTP/nền |
-
-**Quy tắc:**
-- **LVGL không thread-safe.** Task ở Core 0 **không gọi LVGL trực tiếp**. Hoặc đẩy dữ liệu qua queue để task UI xử lý, hoặc bọc bằng `LvglLock` (RAII mutex đệ quy, `core/lvgl_port.hpp`) khi thật sự cần.
-- `loop()` (task Arduino) và task LVGL cùng chạy trên Core 1 nhưng là hai task khác nhau, nên `AppManager::tick()` tự lấy `LvglLock` bên trong. Hàm `onCreate/onTick/onKey` của app luôn được gọi khi **đang giữ** `LvglLock`. Event callback của widget chạy trong task LVGL, cũng đang giữ khóa.
-- Task LVGL chạy ngay sau `LvglPort::init()`, nên trong `setup()` mọi thao tác LVGL (`InputService::init`, `AppManager::init`) phải nằm trong `LvglLock`.
-- TFT và SD ở **hai bus SPI khác nhau** nên không cần mutex giữa hai thiết bị này.
-- Nhưng SD bị **nhiều task dùng chung** (audio đọc nhạc, ImageService đọc ảnh) nên `SdStorage` có mutex nội bộ (đệ quy). Giữ khóa ngắn: đọc theo chunk 4-8 KB hoặc đọc cả file vào PSRAM rồi nhả khóa **trước khi** giải mã.
-- Audio dùng ring buffer >= 64 KB trong PSRAM để không bị đói dữ liệu khi SD bận ảnh.
-- Mọi buffer lớn (ảnh, audio, framebuffer, draw buffer LVGL) cấp bằng `heap_caps_malloc(..., MALLOC_CAP_SPIRAM)` qua `psram.hpp`. Ai cấp phát người đó giải phóng, hoặc ghi rõ trong comment API.
-
----
-
-## 6. Các header "hợp đồng"
-
-### 6.1 `core/psram.hpp`
-
-```cpp
-#pragma once
-#include <cstddef>
-namespace Psram {
-void* alloc(size_t bytes);            // trả nullptr nếu hết bộ nhớ
-void  release(void* p);               // an toàn với nullptr
-size_t freeBytes();
-}
+```
+/images/   ảnh JPG baseline (.jpg / .jpeg), không progressive
+/music/    nhạc MP3 (khuyến nghị 128 kbps, tên không dấu, không khoảng trắng)
+/data/     dữ liệu ứng dụng (slideshow.txt do firmware tự tạo)
 ```
 
-### 6.2 `core/app_base.hpp`: interface app
+Hiện chỉ hỗ trợ **MP3**, chưa hỗ trợ WAV/AAC/M4A.
 
-```cpp
-#pragma once
-#include <lvgl.h>
-#include <cstdint>
+## Build và nạp firmware
 
-enum class AppId : uint8_t {
-    MAIN_SCREEN, APP_PET, APP_MUSIC_PLAYER,
-    APP_VISUALIZER, APP_CALENDAR, APP_ALBUM,
-    APP_SETTINGS, COUNT
-};
+Yêu cầu: VS Code + extension PlatformIO.
 
-class IApp {
-public:
-    virtual ~IApp() = default;
-    virtual AppId id() const = 0;
+```bash
+# Màn ST7789 2.8" (mặc định)
+pio run -e cyberdeck_st7789 -t upload
 
-    // Tạo toàn bộ object LVGL dưới `parent` + cấp phát tài nguyên.
-    virtual void onCreate(lv_obj_t* parent) = 0;
-    // Được hiển thị/được nhận focus (bắt đầu timer, task nền).
-    virtual void onResume() {}
-    // Mất focus (dừng timer; KHÔNG giải phóng trừ khi onDestroy).
-    virtual void onPause() {}
-    // Dọn sạch object LVGL + bộ nhớ + task của app. Không được rò rỉ.
-    virtual void onDestroy() = 0;
-    // Phím custom (KEY_OPTION...). Trả true nếu đã xử lý.
-    virtual bool onKey(uint32_t key) { return false; }
-    // Gọi định kỳ trên Core 1 (non-blocking), tùy chọn.
-    virtual void onTick(uint32_t nowMs) {}
-};
+# Màn ST7735S 1.8" (dự phòng)
+pio run -e cyberdeck_st7735 -t upload
+
+# Xem log (qua cổng USB native)
+pio device monitor
 ```
 
-### 6.3 `core/app_manager.hpp`: FSM
+Một số lệnh hữu ích:
+- `pio run -t erase`: xóa toàn bộ flash, gồm cài đặt theme/app đã lưu
+- `-DKEYPAD_DEBUG=1` trong `build_flags`: in mã phím thật ra serial
+- Env test phần cứng riêng: `sd_test` (thẻ SD), `i2s_test` (bíp 440 Hz)
 
-```cpp
-#pragma once
-#include <cstdint>
-#include "app_base.hpp"
+Nếu màn hình sai màu hoặc nhiễu khi dùng module khác, xem mục 3.1 trong `ARCHITECTURE.md` (cách dò `invertDisplay`, `TFT_RGB_ORDER`, driver, tần số SPI).
 
-namespace AppManager {
-void init();                       // vào MAIN_SCREEN (app tạo qua bảng đăng ký, mục 6.10)
-void goTo(AppId id);               // TRÌ HOÃN: chuyển thật sự ở lần tick() kế tiếp
-void goHome();                     // = goTo(MAIN_SCREEN)
-void reload();                     // TRÌ HOÃN: dựng lại màn hình của app hiện tại (vd sau khi đổi theme)
-AppId current();
-void tick(uint32_t nowMs);         // gọi từ loop Core 1; tự lấy LvglLock
+## Tình trạng dự án
 
-// Đẩy phím custom (KEY_HOME, KEY_OPTION) vào hàng đợi. Thread-safe, không chặn.
-// InputService gọi hàm này; app KHÔNG cần gọi.
-void postKey(uint32_t key);
-}
-```
+- Đã chạy trên board: core + hạ tầng, Main Screen, Settings, Album, Slideshow widget, Music Player, Visualizer, Pet
+- Chưa làm: Calendar, tích hợp DS3231 (`TimeService`), lưu trạng thái Pet vào SD
+- Việc còn lại: đo FPS Visualizer, kiểm tra rò rỉ bộ nhớ qua nhiều lần vào/ra app, tối ưu và kiểm thử tổng, nguồn pin và mạch sạc
 
-Quy tắc:
-- Chỉ **một app** tồn tại tại một thời điểm (tiết kiệm RAM). Thứ tự khi chuyển: `onPause` + `onDestroy` app cũ (**chưa delete**) → dọn group focus mặc định → tạo screen mới (`Themes::applyToScreen`) → `onCreate` app mới → `lv_scr_load` → `onResume` → hủy screen cũ → `delete` app cũ.
-- **Event callback của widget có thể chạy sau `onDestroy()`** (LVGL gửi DEFOCUSED/DELETE khi dọn group và hủy screen) nhưng trước khi app bị delete. Callback phải chịu được việc này: `onDestroy()` nên đặt con trỏ widget về `nullptr` và callback kiểm tra trước khi dùng (mẫu: `indexOf()` trong `main_screen.cpp`, `settings_app.cpp`).
-- Screen do AppManager tạo lấy **nền, màu chữ mặc định và tắt scroll từ theme đang chọn** (`Themes::applyToScreen`, widget con kế thừa màu chữ). Theme mặc định của LVGL là theme sáng với chữ tối, nên nếu thiếu việc đặt màu chữ thì label trên nền tối gần như vô hình (lỗi "màn hình đen" đã gặp ở bước 3). App muốn màu chữ khác thì tự đặt cho từng widget, lấy từ theme.
-- `goTo()`/`goHome()` **không chuyển ngay** mà đặt cờ; việc chuyển thực hiện trong `tick()`. Nhờ vậy gọi từ event callback LVGL là an toàn (không xóa object đang xử lý event). Gọi `goTo` tới chính app đang chạy thì bỏ qua.
-- `reload()` cũng trì hoãn như `goTo()`: app hiện tại được dựng lại từ đầu với theme hiện tại. Trạng thái cần giữ qua lần dựng lại (vị trí focus, hàng đang chọn) thì app tự giữ ở biến tĩnh (mẫu: `lastFocusIdx` trong `main_screen.cpp`, `lastRow` trong `settings_app.cpp`).
-- `KEY_HOME` do AppManager xử lý (về Main Screen, bỏ qua nếu đang ở Main). `KEY_OPTION` chuyển tới `IApp::onKey()` của app hiện tại.
-- Mỗi lần chuyển, AppManager in một dòng `[AppManager] -> <tên> (N ms) | heap .. KB, psram .. KB` ra serial, dùng để theo dõi rò rỉ bộ nhớ.
-- Riêng `AudioService` chạy nền độc lập với app, nên thoát Music Player nhạc vẫn phát (hoặc dừng, quyết định ở chat Music).
+## Tài liệu
 
-### 6.4 `services/input_service.hpp`
+- [`concept.md`](concept.md): ý tưởng và bố cục giao diện từng màn hình
+- [`instruction.md`](instruction.md): bối cảnh và quy tắc lập trình của dự án
+- [`ARCHITECTURE.md`](ARCHITECTURE.md): hợp đồng kiến trúc, API các service, quy ước phím, nhật ký kiểm thử
 
-```cpp
-#pragma once
-#include <lvgl.h>
-namespace InputService {
-void init();                       // tạo lv_indev + group mặc định; gọi khi đang giữ LvglLock
-lv_indev_t* indev();
-lv_group_t* defaultGroup();        // app thêm widget cần focus vào group này
-}
-```
+## Giấy phép
 
-Gọi sau `LvglPort::init()` và trước `AppManager::init()`. Nguồn phím: bàn phím ma trận + Serial (mục 4); `init()` gọi `KeypadMatrix::init()`. Chỉ nút bấm (`lv_btn`...) tự vào group mặc định; container `lv_obj` thì không.
-
-### 6.5 `services/sd_storage.hpp`
-
-Đã viết, test trên máy tính đạt (48 kiểm tra) và chạy đúng trên board. API dùng `std::string` (không dùng Arduino `String`).
-
-```cpp
-#pragma once
-#include <FS.h>
-#include <cstddef>
-#include <string>
-#include <vector>
-
-namespace SdStorage {
-// Mount thẻ trên bus HSPI riêng: thử 25 MHz, thất bại thì 10 rồi 4 MHz.
-// Gọi lại khi đã mount thì trả true ngay. Gọi trong setup(), không cần LvglLock.
-bool begin();
-bool isMounted();
-
-// Liệt kê file theo đuôi, không phân biệt hoa/thường; `exts` là danh sách cách nhau bởi ';',
-// ví dụ ".jpg;.jpeg" (nullptr = mọi file). Trả đường dẫn đầy đủ, sắp xếp không phân biệt hoa/thường.
-// Bỏ qua thư mục và file ẩn (bắt đầu bằng '.'). Rỗng nếu thư mục không tồn tại hoặc chưa mount.
-std::vector<std::string> listFiles(const char* dir, const char* exts);
-
-bool exists(const char* path);
-
-// Đọc cả file vào PSRAM. Người gọi giải phóng bằng Psram::release(). Trả nullptr nếu lỗi
-// (không có file, file rỗng, hết PSRAM, đọc thiếu); *outSize = 0 khi lỗi. Khóa SD giữ theo chunk 8 KB.
-void* readFileToPsram(const char* path, size_t* outSize);
-
-// Ghi đè file (tạo mới nếu chưa có). KHÔNG tự tạo thư mục cha. Trả true nếu ghi đủ.
-bool writeFile(const char* path, const void* data, size_t len);
-
-// Đọc theo dòng (audio). Mỗi lần open/read/seek tự khóa rồi nhả khóa. Hàm hủy tự đóng file.
-class Reader {
- public:
-  bool open(const char* path);            // mở lại file khác thì tự đóng file cũ
-  size_t read(void* dst, size_t n);       // 0 = hết file hoặc lỗi
-  bool seek(size_t pos);
-  size_t size() const;
-  bool isOpen() const;
-  void close();
-};
-}
-```
-
-Mọi hàm gọi được từ nhiều task: dùng chung một mutex đệ quy bên trong, khóa chỉ giữ trong từng lần đọc/ghi (tối đa 8 KB), không giữ lúc giải mã. Trước `begin()` hoặc khi mount lỗi, mọi hàm trả giá trị rỗng/false, không treo.
-
-Thư mục trên thẻ SD: `/images/` (JPG, nhận cả `.jpg` và `.jpeg`), `/music/` (MP3), `/data/` (sự kiện lịch, trạng thái thú ảo, `slideshow.txt` là đường dẫn ảnh widget Main Screen, do `SlideshowService` tự tạo, không tạo tay). Thẻ phải được format FAT32 bằng SD Card Formatter (format nhanh của Windows trên thẻ từng dùng có thể để lại phân vùng mà ESP32 không đọc được, lỗi `no valid FAT volume`).
-
-### 6.6 `services/image_service.hpp`
-
-```cpp
-#pragma once
-#include <cstdint>
-
-struct Image {
-    uint16_t* pixels = nullptr;   // RGB565 trong PSRAM
-    int w = 0, h = 0;
-};
-
-namespace ImageService {
-// Giải mã JPG từ SD, thu nhỏ để vừa trong targetW x targetH (giữ tỉ lệ).
-// Dùng scale 1/2, 1/4, 1/8 của bộ giải mã khi có thể.
-// Chạy được ở task Core 0; KHÔNG chạm LVGL.
-bool decode(const char* path, int targetW, int targetH, Image* out);
-void free(Image* img);        // release pixels, reset về rỗng
-}
-```
-
-Để dùng với LVGL: app tự bọc `Image` thành `lv_img_dsc_t` (cf `LV_IMG_CF_TRUE_COLOR`) và **chỉ tạo/sửa object LVGL ở task UI**.
-
-decode() an toàn khi gọi từ nhiều task cùng lúc (mutex bên trong, vì TJpg_Decoder dùng đối tượng toàn cục). File được đọc cả vào PSRAM trước khi giải mã. Chỉ hỗ trợ JPG baseline, không progressive, bỏ qua EXIF orientation, không bao giờ phóng to ảnh (ảnh nhỏ hơn khung giữ nguyên). Người gọi giải phóng bằng ImageService::free().
-
-### 6.7 `services/audio_service.hpp`
-
-```cpp
-#pragma once
-#include <Arduino.h>
-
-enum class AudioState : uint8_t { STOPPED, PLAYING, PAUSED, ERROR };
-
-namespace AudioService {
-bool begin();                              // I2S + task decode ở Core 0
-bool play(const char* path);               // MP3/WAV từ SD
-void pause();
-void resume();
-void stop();
-void seek(int deltaSeconds);               // tua tương đối (+/-)
-void setVolume(uint8_t v0to100);
-
-AudioState state();
-uint32_t positionMs();
-uint32_t durationMs();                     // 0 nếu chưa biết
-bool finished();                           // bài vừa kết thúc (đọc xong tự xóa cờ)
-
-// Chỉ phát MP3 (không có WAV). Giải mã bằng minimp3, tự bỏ qua ID3v2. Mọi tần số lấy mẫu MP3 phổ biến; ra loa mono (L=R).
-// Hai task ở Core 0: giải mã (đọc SD, ưu tiên 3, stack 32 KB) và xuất I2S (ưu tiên 4). Ring PCM mono 128 KB trong PSRAM.
-// Thời lượng lấy từ header Xing/Info nếu có, không thì ước theo bitrate. Tua seek() ước theo byte nên chính xác với CBR.
-// play() bỏ bài đang phát. Hết bài thì trạng thái về STOPPED và finished() trả true một lần. Không tự chuyển bài; việc đó do app.
-// readPcmTap() trả PCM mono trước khi áp âm lượng; trả 0 khi không ở trạng thái PLAYING.
-// Nhạc chạy nền độc lập với app: thoát Music thì bài đang phát chạy hết rồi dừng.
-// begin() gọi lười từ MusicApp::onCreate (gọi lại an toàn). Có thể chuyển sang setup().
-
-// Cho Visualizer: sao chép tối đa n mẫu PCM 16-bit mono gần nhất.
-// Trả số mẫu thực tế. Không chặn, không khóa lâu.
-size_t readPcmTap(int16_t* dst, size_t n);
-}
-```
-
-### 6.8 `services/time_service.hpp`
-
-```cpp
-#pragma once
-#include <cstdint>
-
-struct DateTime {
-    uint16_t year; uint8_t month, day;   // month 1-12
-    uint8_t hour, minute, second;
-    uint8_t weekday;                     // 0 = Chủ Nhật
-};
-
-namespace TimeService {
-bool begin();                            // DS3231; nếu không có thì dùng giờ hệ thống
-DateTime now();
-void set(const DateTime& dt);            // ghi vào DS3231
-bool syncNtp(const char* tz);            // tùy chọn, khi có WiFi
-}
-```
-
-### 6.9 `core/app_factories.hpp`: factory của app
-
-Mỗi app cung cấp **một** hàm factory (đặt trong `apps/<tên>/<tên>_app.cpp`), trả về đối tượng cấp phát bằng `new`; AppManager sở hữu và `delete` sau `onDestroy()`.
-
-```cpp
-IApp* createMainScreenApp() __attribute__((weak));
-IApp* createPetApp()        __attribute__((weak));
-IApp* createMusicApp()      __attribute__((weak));
-IApp* createVisualizerApp() __attribute__((weak));
-IApp* createCalendarApp()   __attribute__((weak));
-IApp* createAlbumApp()      __attribute__((weak));
-IApp* createSettingsApp()   __attribute__((weak));
-```
-
-Khai báo `weak` nên app nào chưa được viết thì AppManager tự hiện màn hình thay thế ("<TÊN>" + "(chua cai dat)"), dự án vẫn build và chạy được. Ví dụ trong `album_app.cpp`: `IApp* createAlbumApp() { return new AlbumApp(); }` (định nghĩa ở phạm vi toàn cục, không nằm trong namespace).
-
-### 6.10 `core/app_registry.hpp`: bảng đăng ký app
-
-```cpp
-struct AppInfo {
-    AppId id;
-    const char* key;     // khóa ổn định để lưu vào flash, KHÔNG đổi sau khi đã phát hành
-    const char* label;   // tên ngắn, ASCII (font mặc định chưa có dấu tiếng Việt)
-    const void* icon;    // lv_img_dsc_t* của bộ icon 0 (mặc định); nullptr = launcher hiện tên
-    IApp* (*create)();   // factory; nullptr nếu app chưa viết (hiện màn hình thay thế)
-    bool selectable;     // true = người dùng bật/tắt hiển thị trên Main Screen trong Settings
-};
-
-namespace AppRegistry {
-constexpr size_t kLauncherSlots = 6;                    // = GRID_COLS * GRID_ROWS
-constexpr size_t kMaxSelected = kLauncherSlots - 1;     // ô cuối luôn là Settings
-
-const AppId* launcherSlots();       // các app đang chọn theo thứ tự bảng, rồi ô trống (COUNT), ô cuối = APP_SETTINGS
-const AppInfo& info(AppId id);
-size_t count();                     // duyệt bảng: thứ tự = thứ tự trong Settings và trên Main Screen
-const AppInfo& at(size_t index);
-constexpr uint8_t kThemeCount = 3;          // = Icons::kThemeCount
-const void* icon(AppId id, uint8_t theme);  // lv_img_dsc_t* theo bộ icon; theme ngoài khoảng -> bộ 0; nullptr nếu app không có icon
-AppId findByKey(const char* key);   // COUNT nếu không có
-
-bool isSelected(AppId id);
-size_t selectedCount();
-bool setSelected(AppId id, bool on);// false nếu không chọn được (không selectable, hoặc đã đủ kMaxSelected)
-void resetSelection();              // mặc định: các app selectable đầu tiên trong bảng, tối đa kMaxSelected
-}
-```
-
-Bảng `kInfos` trong `app_registry.cpp` là nơi duy nhất liệt kê app. Thứ tự các app `selectable` hiện tại (theo mockup): Music, Pet, Calendar, Visualizer, Album; Main và Settings có `selectable = false`. `AppManager::createApp()` tra bảng này (không còn `switch`).
-
-**Thêm app mới: 3 việc.** Thêm một giá trị vào `AppId`, khai báo factory weak trong `app_factories.hpp`, thêm một dòng vào `kInfos`. Settings và Main Screen tự cập nhật; không sửa `app_manager` hay `main_screen`. Đổi tên chỉ sửa dòng trong bảng. App muốn có icon thì thêm một giá trị vào `Icons::Id`, 3 ảnh PNG (mỗi theme một ảnh, 64x64, trắng trên nền trong suốt), sinh lại `icons_t*.cpp` và thêm một `case` trong `AppRegistry::icon()`. App chưa có icon vẫn hiện tên.
-
-**Icon app:** 3 bộ vẽ tay theo kiểu pixel art (theme `night` = bộ 0 phù thủy/trăng, `mint` = bộ 1 rừng, `pink` = bộ 2 hoa anh đào), mỗi bộ 6 icon (music, pet, visual, calendar, album, settings), 64x64, luôn màu trắng, không tô màu theo theme. Dữ liệu `lv_img_dsc_t` (RGB565 trắng + alpha) nằm trong flash, không tốn RAM, lấy bằng `Icons::get(Icons::Id, theme)`. Chỉ hiện khi `!UI_COMPACT`; màn nhỏ hoặc app chưa có icon thì hiện tên. Chọn bộ icon theo khóa theme trong `iconSet()` của `main_screen.cpp`; theme mới chưa có bộ riêng dùng bộ 0.
-
-Danh sách app hiện trên Main Screen là lựa chọn của người dùng (tối đa `kMaxSelected`), lưu bằng khóa (`key`) nên thêm hoặc đổi thứ tự app trong bảng không làm hỏng dữ liệu đã lưu. Ô trống vẫn là nút có viền focus, bấm 5 không làm gì.
-
-### 6.11 `core/theme.hpp`: theme giao diện
-
-```cpp
-struct Theme {
-    const char* key;            // khóa ổn định để lưu vào flash
-    const char* name;           // tên hiển thị (ASCII)
-    uint32_t bg;                // nền màn hình
-    uint32_t panel;             // khối lớn, nền ô/nút nổi bật
-    uint32_t accent;            // màu nhấn
-    uint32_t text;              // chữ trên nền màn hình
-    uint32_t textOnPanel;       // chữ trên khối panel
-    uint32_t focus;             // viền khi focus
-    uint32_t icon;              // màu icon
-    uint32_t scrim;             // khối làm mờ đặt sau chữ khi có ảnh nền
-    uint8_t scrimOpa;           // độ đặc của scrim 0..255
-    const lv_img_dsc_t* bgImage;// ảnh nền toàn màn hình RGB565 (UI_W x UI_H), nullptr = nền màu bg
-};
-
-namespace Themes {
-size_t count();
-const Theme& at(size_t index);      // ngoài khoảng -> theme đầu
-const Theme& current();
-bool select(const char* key);       // false và giữ nguyên nếu khóa lạ. Gọi AppManager::reload() sau đó để vẽ lại
-void applyToScreen(lv_obj_t* screen);// AppManager gọi khi dựng màn hình mới
-}
-```
-
-Chỉ gọi từ ngữ cảnh UI (đang giữ `LvglLock`). Theme có sẵn trong `theme.cpp`: `pink` (mặc định), `night`, `mint`. Thêm theme: thêm một khối vào cuối mảng `kThemes`, không đổi khóa theme đã có. Muốn có bộ icon riêng cho theme mới thì làm thêm một bộ icon và một dòng trong `iconSet()` (`main_screen.cpp`); chưa làm thì Main Screen dùng bộ icon 0.
-
-Màu trong app lấy bằng `lv_color_hex(Themes::current().panel)`... Ảnh nền: đặt `bgImage` để `applyToScreen` đặt ảnh làm nền màn hình, chữ trong suốt nổi lên trên; để chữ dễ đọc, đặt khối `scrim` bán trong suốt phía sau vùng có chữ. Ảnh nền chưa có ảnh nào (chờ SD/ImageService). Theme nạp từ thẻ SD (không cần nạp lại firmware) là hướng làm sau.
-
-### 6.12 `services/settings_store.hpp`: lưu cài đặt
-
-```cpp
-namespace SettingsStore {
-void begin();   // đọc từ flash NVS, áp vào Themes và AppRegistry. Gọi trước AppManager::init()
-void save();    // ghi theme hiện tại + danh sách app đang chọn
-}
-```
-
-Lưu hai khóa trong namespace NVS `cyberdeck`: `theme` (khóa theme) và `apps` (khóa app cách nhau dấu phẩy, theo thứ tự bảng). Chưa có dữ liệu thì dùng mặc định; khóa lạ, trùng, hoặc vượt `kMaxSelected` bị bỏ qua. NVS lỗi thì giữ nguyên trạng thái. Nạp lại firmware không xóa cài đặt; xóa bằng `pio run -t erase`.
-
-### 6.13 `services/slideshow_service.hpp`: ảnh widget Main Screen
-
-Người dùng chọn một ảnh (từ Album), Main Screen hiển thị ảnh đó ở nửa trái. Không có chu kỳ, không tự chuyển ảnh. Chỉ có một task giải mã tồn tại tạm thời (Core 0, stack 8 KB, ưu tiên 1), chạy xong tự xóa.
-
-```cpp
-#pragma once
-#include <lvgl.h>
-
-namespace SlideshowService {
-// ALBUM gọi: chọn ảnh hiển thị. Xóa cache cũ, lưu đường dẫn vào /data/slideshow.txt.
-// false nếu đường dẫn không hợp lệ; nếu ghi SD lỗi thì vẫn áp dụng trong RAM (mất sau khi
-// khởi động lại) và cũng trả false. Chỉ gọi khi Main Screen KHÔNG hiển thị.
-bool setPhoto(const char* path);
-void clearPhoto();                    // bỏ ảnh đã chọn, widget hiện khung trống
-
-// MAIN SCREEN gọi trong onCreate: đọc đường dẫn (lần đầu), nếu có ảnh mà chưa có cache thì
-// bật task Core 0 giải mã vừa khung targetW x targetH. Không chặn.
-void request(int targetW, int targetH);
-bool settled();                       // true khi không còn chờ (có ảnh, không có ảnh, hoặc lỗi)
-const lv_img_dsc_t* image();          // nullptr nếu không có; con trỏ sống đến setPhoto/clearPhoto kế tiếp
-}
-```
-
-- Ảnh được xử lý kiểu "cover": service tự phóng/thu cho phủ kín khung rồi cắt chính giữa, lấy mẫu song tuyến tính RGB565 ra đúng kích thước khung (không méo, không dải trống). Ảnh nhỏ hơn khung được phóng to để phủ kín (ảnh quá nhỏ sẽ hơi mờ). Bước này không phụ thuộc cách `ImageService::decode` thu ảnh: service chỉ nhờ decode giải mã ở cỡ gần nguyên bản (tối đa 4 lần khung).
-- Kết quả cache trong PSRAM (khoảng 71 KB với khung 154x232), vào/ra Main Screen không giải mã lại. Pixel thuộc service, không thuộc widget, nên không bị giải phóng khi thoát Main Screen. Bộ đệm giải mã lớn hơn chỉ tồn tại tạm thời trong task, giải phóng ngay sau khi xử lý.
-- Giải mã lỗi thì Main Screen hiện chữ cố định "dinhh py" và thử lại ở lần vào Main kế tiếp.
-- Mọi trạng thái chung bảo vệ bằng một mutex; khóa luôn lấy theo thứ tự mutex của service rồi tới khóa SD.
-
----
-
-## 7. Hợp đồng riêng của từng app
-
-| App | Gọi service | Phím đặc thù | Ghi chú |
-|---|---|---|---|
-| Main Screen | Time (tạm dùng giờ hệ thống `time()`, đổi sang `TimeService::now()` ở Chat 2), Image (slideshow), Slideshow (SlideshowService) | 4/6 đi vòng widget trái → cột 1 → cột 2 → widget trái; 2/8 đổi hàng trong lưới (quay vòng); 5 mở app (widget trái mở Album) | Nửa trái: `SlideshowWidget` (`slideshow_widget.hpp/.cpp`), focus được, viền màu focus của theme; ngày giờ đè ở đáy (2 dòng khi `UI_COMPACT`); Ảnh nửa trái lấy từ `SlideshowService` (mục 6.13): `onCreate` gọi `request(kW, kH)`, `onTick` gọi `settled()`/`image()` rồi `setImage()` một lần. Khung trống (chưa chọn ảnh hoặc lỗi) hiện chữ "dinhh py", màu theo theme (`panel`, `textOnPanel`, `focus`, `scrim`). Nửa phải: lưới icon 2 cột x 3 hàng theo `AppRegistry::launcherSlots()` (mục 6.10): app người dùng chọn, ô trống (vẫn focus được, không làm gì), ô cuối là Settings. Nút lưới hiện icon 64x64 (AppRegistry::icon(id, theme), luôn màu trắng, không dùng ICON_SIZE) khi !UI_COMPACT, app chưa có icon hoặc màn nhỏ thì hiện tên. Nền nút, viền focus và chữ lấy từ theme (panel, focus, textOnPanel). Nhớ vị trí focus (kể cả widget trái) khi quay lại. ESC bị bỏ qua vì là màn gốc. Mở app bằng `AppManager::goTo()` |
-| Settings | SettingsStore | 2/8 lên xuống (quay vòng), 4/6 hoặc 5 đổi theme ở hàng đầu, 5 bật/tắt app ở các hàng sau, 1 thoát | Hàng đầu: theme (`< tên >`). Các hàng sau: mỗi app `selectable` của bảng đăng ký với `[x]`/`[ ]`; chọn tối đa `kMaxSelected`, vượt thì báo "Da du N app". Chân màn hình ghi số app đã chọn. Mỗi thay đổi lưu flash ngay; đổi theme thì `AppManager::reload()` và nhớ hàng đang chọn. Danh sách cuộn dọc khi nhiều app. Do chat 0 viết |
-| Pet | Không dùng (trạng thái lưu trong RAM; sau này nối SdStorage vào /data/) | 4/6/2/8 chọn nút, 5 kích hoạt | 6 nút tròn quanh thú (3 trái, 3 phải): Eat, Play, Bath, Sleep, Skin và một ô trống. Eat/Play/Bath/Sleep có icon pixel và mặt nạ tối dần theo chỉ số (kim đồng hồ từ 12 giờ). Skin hiện màu lông và xoay vòng: tam thể, tuxedo, trắng, cam vằn. Mèo buồn khi một trong Eat/Play/Bath dưới 40. Sleep là vòng năng lượng: hết một vòng thì mèo tự ngủ, nền chuyển sang đêm, ngủ đầy thì tự dậy. Mèo là lưới pixel 20x20 phóng số nguyên lần (x3 trên 160x128, x6 trên 320x240), có hoạt ảnh chớp mắt, giật tai, vẫy đuôi, thở khi ngủ, phản ứng khi bấm nút. Nền gồm canvas ngày/đêm, mây trôi và sao nhấp nháy. Trạng thái thú ở một đối tượng toàn cục (PetState) nên vẫn chạy khi ở app khác. App gọi tick của sprite và nền trong onTick. Độc lập, không cần SD để chạy. Hình mèo và nền ngày/đêm không đổi theo theme |
-| Music | Audio, SdStorage, ImageService (qua DiscCover), đọc /data/slideshow.txt | 2/8 chọn bài; 5 phát bài đang chọn, hoặc Play/Pause nếu là bài đang phát; 4/6 tua ∓10 giây; 7/9 bài trước/sau; 3 (KEY_OPTION) tăng âm lượng; 1 về Home | Trái là đĩa quay (ảnh mặt đĩa dùng chung ảnh đã chọn cho widget Main Screen, chọn ở Album bằng phím 3), thanh tiến độ, thời gian, nút điều khiển; phải là tên bài (cuộn ngang), số bài, âm lượng (biểu tượng loa + thanh) và playlist quét /music/*.mp3 (tối đa 64 bài). Âm lượng hiển thị 10..100, bước 10; mức hiển thị 100 ứng với mức 80 của AudioService::setVolume (mức cao hơn bị rè trên loa này). Mặc định 50. Ảnh đĩa: task Core 0 giải mã, cắt vuông giữa, dựng sẵn 45 khung xoay cách nhau 8° vào PSRAM (khoảng 1,2 MB với đĩa 116 px), cắt tròn, phần góc tô màu nền theme; lúc phát chỉ đổi khung mỗi 100 ms. Chưa có ảnh hoặc lỗi thì đĩa hiện hai cung quay. Theme có ảnh nền (bgImage) sẽ lộ phần góc. Tự chuyển bài khi hết bài chỉ khi app đang mở; rời app thì bài chạy hết rồi dừng |
-| Visualizer | Audio (`readPcmTap`) | 7/9 đổi kiểu hiệu ứng, 4/6 chỉnh dạng (số thanh; waveform: độ phóng biên độ), 1 thoát | Phím 7/9 không tới widget dưới dạng LV_EVENT_KEY (LVGL 8.3 chỉ dùng chúng để dời focus), nên app đặt hai widget "gác" 1x1 trong suốt hai bên widget chính trong group: focus bị dời sang widget gác nghĩa là người dùng bấm 7 hoặc 9, app trả focus về widget chính ngay trong callback. Kiểu và mức 4/6 nhớ ở biến tĩnh. Các hằng số chỉnh độ nhạy/độ mượt/fps (kFrameMs, kDbFloor, kDbRange, kTiltDb, kAttack, kFall) nằm đầu visualizer_app.cpp. Màu thanh lấy từ accent, vạch đỉnh từ focus; theme quá tối trên nền đen thì rơi về text, rồi trắng |
-| Calendar | Time, SdStorage (`/data/events.json`) | 2/8/4/6 di chuyển ngày, 7/9 đổi tháng | Tiêu đề tháng, hàng `S M T W T F S`, lưới ngày 7 cột x 6 hàng |
-| Album | Image, SdStorage | 5 xem toàn màn hình, 1 quay lại, 3 = đặt ảnh làm ảnh widget Main Screen | Lưới 4x4 (3x3 khi UI_COMPACT), tối đa 256 ảnh trong /images. Thumbnail giải mã ở task nền Core 0, kết quả về UI qua queue và onTick. 2/4/6/8 di chuyển quay vòng, 5 xem toàn màn hình (4/6 đổi ảnh, 5 hoặc 1 đóng), 1 ở lưới về Home. Phím 3 (KEY_OPTION) gọi SlideshowService::setPhoto() cho ảnh đang xem, hoặc ô đang chọn khi ở lưới. Thông báo “Da dat lam anh nen” hoặc “Khong luu duoc” hiện 1,5 giây, tự ẩn bằng millis() trong onTick. Màn xem ảnh có gợi ý mờ “3: dat nen” ở góc trên phải. |
-
-### 7.1 Quy ước giao diện
-
-- Ảnh mockup (tông hồng, 6 màn) chỉ để **minh họa** bố cục. Không bắt chước nét vẽ tay: dùng các khối/hình học của LVGL (bo góc, viền, màu phẳng). **Không dùng hiệu ứng glow.** Font chữ dùng mặc định của LVGL.
-- Màu lấy từ theme (quy tắc vàng số 5, mục 6.11). Theme mặc định `pink` giữ tông hồng của mockup.
-- Icon app tách ra một chỗ riêng để cập nhật (mục 6.10).
-- Màn 2.8" (320x240) là màn đang dùng, mỗi nửa màn hình rộng khoảng 160 px. Màn 1.8" (160x128) chật hơn rất nhiều: dùng `UI_COMPACT` để rút gọn khi cần.
-- Ngoại lệ màu nền: Visualizer dùng nền đen cố định (`lv_color_black()`, không phải hex) để thanh màu nổi bật; mọi màu còn lại vẫn lấy từ `Themes::current()`. Nếu `accent` của một theme quá tối trên nền đen thì rơi về `text`.
-
----
-
-## 8. Lộ trình chat
-
-| # | Chat | Phụ thuộc | Trạng thái |
-|---|---|---|---|
-| 0 | Core + hạ tầng: `platformio.ini`, `config/`, `lvgl_port`, `input_service`, `app_manager`, `app_registry`, `theme`, `settings_store`, app Settings, `psram` | - | Bước 1-5 xong và chạy đúng trên board (TFT/LVGL, phím serial, AppManager, bàn phím 3x3, màn ST7789 + theme + bảng đăng ký + Settings). Bước 6: `sd_storage` xong và chạy đúng trên board. Phần cứng chưa làm: I2S, DS3231 |
-| 1 | Main Screen (khung) + chuyển app, app stub | 0 | Xong và chạy đúng trên board: widget trái (đồng hồ + ảnh qua `SlideshowService`), focus/điều hướng hai nửa, phím 5 mở Album, icon app 3 bộ theo theme (64x64, trắng). Màu nút, viền focus, khung ảnh lấy từ theme. Chưa có test máy tính (ASan) cho Main Screen. Đồng hồ dùng giờ hệ thống cho tới Chat 2. |
-| 2 | Time service | 0 | Đã có DS3231, chưa viết |
-| 3 | Image service + Album | 0 | Xong và chạy đúng trên board: giải mã JPG, lưới thumbnail, xem toàn màn hình. Test máy tính cho phần resize (32 kiểm tra). Phím 3 đặt ảnh widget: build được, chưa test đủ trên board (xem mục 12) |
-| 4 | Slideshow widget (Core 0) | 1, 3 | Xong, build được. Giải mã 1 ảnh ở Core 0, cache PSRAM, cắt giữa kiểu cover, lưu đường dẫn vào /data/slideshow.txt. Không có chu kỳ chuyển ảnh (người dùng chọn từ Album). Xong, build được. Phím chọn ảnh ở Album (phím 3) đã thêm và build được |
-| 5 | Audio service + Music Player | 0 | Xong và chạy đúng trên board: AudioService (minimp3 + I2S), Music Player, ảnh đĩa xoay, âm lượng. Chưa có test máy tính (ASan) cho audio_service. Chân I2S đã có trong `config/pins.hpp`; `audio_service.cpp`. |
-| 6 | Visualizer | 5 | Xong và chạy ổn trên board: fft + VisualizerApp 3 kiểu, 7/9 đổi kiểu, 4/6 chỉnh dạng. Test máy tính đạt (fft 2695 kiểm tra, VisualizerApp 1142 kiểm tra bằng stub LVGL). Chưa đo FPS và chưa kiểm tra rò rỉ qua nhiều lần vào/ra trên board |
-| 7 | Calendar | 2 | |
-| 8 | Pet | 0 | Xong và chạy đúng trên board: chỉ số, icon pixel, nền ngày/đêm động, mèo ngủ, hoạt ảnh. Chưa lưu SD (chờ SD và DS3231). Tốc độ giảm chỉ số đã chốt ở mức hiện tại (PET_DECAY_FAST = 1) |
-| 9 | Tối ưu + kiểm thử | tất cả | |
-
-Thứ tự gợi ý để sớm thấy kết quả: 0 → 1 → 8 → 2 → 3 → 4 → 5 → 6 → 7 → 9.
-
----
-
-## 9. Prompt mở đầu cho mỗi chat con
-
-> Đây là chat cho **app/service X** của dự án Cyberdeck. Hãy tuân thủ `ARCHITECTURE.md`, `concept.md`, `instruction.md`.
-> Chỉ viết code trong `apps/<x>/` (hoặc `services/<x>` nếu chat này được giao service đó). Gọi các service qua đúng header đã định nghĩa, **không sửa header chung**. Nếu cần đổi API, hãy báo trước và đề xuất bản cập nhật cho `ARCHITECTURE.md`.
-> Bắt buộc: `.hpp/.cpp` tách riêng, không `delay()`, buffer lớn trong PSRAM, không gọi LVGL từ Core 0. Cung cấp hàm factory `createXxxApp()` (mục 6.9). Tự xử lý `LV_KEY_ESC` và phím mũi tên trong app (mục 4). Callback widget phải chịu được việc chạy sau `onDestroy()` (mục 6.3). **Màu lấy từ `Themes::current()`, không ghi hex** (mục 6.11). App mới đăng ký bằng một dòng trong `app_registry.cpp` (mục 6.10).
-
-## 10. Checklist test phần cứng (sketch tối giản trước khi ghép LVGL)
-
-- [x] Quét keypad, in mã phím ra serial (có cả giữ lâu)
-- [x] TFT: tô màu + vẽ chữ bằng TFT_eSPI thuần (ST7735S và ST7789)
-- [x] SD: mount, liệt kê file, đo tốc độ đọc (`tools/sd_test`, 25 MHz, khoảng 1,5 MB/s)
-- [x] I2S: phát tiếng bíp 440 Hz
-- [ ] DS3231: đọc/ghi giờ, in ra serial
-- [x] Kiểm tra `psramFound()` và `ESP.getFreePsram()`
-
-## 11. Quyết định còn mở
-
-- [ ] Tab màu thực tế của ST7735S 1.8" (đang dùng `cyberdeck_st7735` = BLACKTAB và hiển thị đúng; xác nhận lại tab nếu từng thử env khác)
-- [x] Màn 2.8": ST7789 240x320 không cảm ứng, đã chọn và chạy đúng (`TFT_BGR` + `invertDisplay(false)`, mục 3.1)
-- [ ] Nhạc có tiếp tục phát khi thoát Music Player không
-- [ ] Định dạng nhạc ưu tiên (MP3 hay WAV) và thư viện giải mã (nhạc của người dùng đang là `.m4a`/AAC, nặng hơn MP3; dự kiến đổi sang MP3 128 kbps, tên không dấu, không khoảng trắng)
-- [ ] Nguồn pin và mạch sạc (làm sau cùng)
-- [ ] Host SPI thực tế của TFT_eSPI trên bản Arduino core đang dùng (mục 1.2: mặc định FSPI; xác nhận khi làm SD)
-- [x] Ô trống cuối lưới Main Screen: đã chốt là Settings
-- [x] Nền ngày/đêm và hình ảnh mèo của Pet đã chốt (màu lấy từ ảnh mẫu)
-- [ ] Nền hoàng hôn và trời mưa: mèo phản ứng ra sao chưa quyết định
-- [x] Theme: bảng màu có tên, người dùng chọn trong Settings, lưu NVS (mục 6.11, 6.12)
-- [x] Theme áp cho widget slideshow của Main Screen (đã xong)
-- [ ] Theme: ảnh nền (cần SD/ImageService), nạp theme từ thẻ SD
-- [x] Chế độ hiển thị ảnh widget: hiện luôn cover (phủ kín, cắt giữa). Nếu muốn chọn vùng cắt hoặc hiện nguyên ảnh (letterbox), cần thêm tùy chọn vào SlideshowService
-- [ ] Danh sách app: thêm app thứ 7 trở lên thì Settings cuộn được nhưng launcher giới hạn `kMaxSelected` = 5 app chọn cùng lúc
-- [x] Nhạc không tự chuyển bài khi rời Music: bài đang phát chạy hết rồi dừng
-- [x] Định dạng nhạc: MP3 (minimp3), không hỗ trợ WAV/AAC. Người dùng tự đổi file sang MP3 128 kbps, tên không dấu
-- [x] Theme có ảnh nền (bgImage) thì ảnh đĩa Music lộ phần góc (đang bake màu bg của theme)
-- [x] Visualizer: không hiện tên bài (không cần API tên bài trong AudioService), 3 kiểu (thanh đối xứng giữa, waveform, thanh đối xứng hai viền), nền đen, FFT 256 ở Core 1, thoát app thì hủy, nhạc chạy nền
-- [ ] Visualizer: nếu bass thô trên board thì đổi FFT lên 512 (đổi một hằng constexpr)
-- [x] Icon app Main Screen: 3 bộ icon theo 3 theme, 64x64, luôn màu trắng (không tô theo theme); chọn bộ theo khóa theme
-
-## 12. Nhật ký kiểm thử chat 0 (làm lại từ đầu)
-
-Bản làm trước bị boot loop: `StoreProhibited` trong `TFT_eSPI::init()` (khớp issue #3346 của TFT_eSPI trên ESP32-S3). Cách xử lý là ghim phiên bản (mục 3.1).
-
-**Bước 1: test TFT (đã chạy trên board)**
-- [x] Hết boot loop với `espressif32@6.5.0` + `TFT_eSPI@2.5.43`; `tft.init()` chạy được
-- [x] Màn ST7735S hiển thị đúng; PSRAM nhận đủ (khoảng 8189 KB trống), heap ổn định
-- [x] Log serial đi qua cổng **USB native** (do `ARDUINO_USB_CDC_ON_BOOT=1`), không phải cổng UART
-
-**Bước 2: LVGL + phím qua serial (đã chạy trên board)**
-- [x] LVGL vẽ được lên TFT; phím 1, 5, 7, 9 đúng
-- [x] Phát hiện: LVGL 8.3 không tự dời focus cho phím mũi tên. Đã chuyển sang app tự xử lý, điều hướng lưới quay vòng chạy đúng
-
-**Bước 3: AppManager + launcher + app stub**
-- [x] Test trên máy tính: LVGL 8.3.11 thật + stub phần cứng + AddressSanitizer, 38 kiểm tra đạt (điều hướng quay vòng, mở từng app, ESC/HOME/OPTION, ô trống, nhớ focus, 300 lần vào/ra app không tăng bộ nhớ)
-- [x] Test bắt được lỗi use-after-free khi `delete` app trước khi dọn group focus; đã sửa, thứ tự chuyển app ghi ở mục 6.3
-- [x] Chạy trên board: chuyển app được nhưng màn hình app stub trông như màn hình đen. Nguyên nhân: chữ mặc định tối trên nền đen. Đã tái hiện bằng test chụp khung hình (độ sáng chữ 32/255), sửa bằng chữ trắng mặc định (255/255) (mục 6.3)
-- [x] Đã xác nhận chạy đúng trên board sau bản sửa (task LVGL trên Core 1, heap LVGL trong PSRAM đều ổn)
-
-**Bước 4: bàn phím 3x3 thật**
-- [x] Test trên máy tính với mô hình GPIO giả lập có phát hiện chập mạch: 56 kiểm tra bộ quét (rảnh 5 s không thao tác GPIO nào, đủ 8 phím, phím 1 ngắn = ESC khi thả, giữ 800 ms = một HOME và không ESC, dội phím, nhiều phím, ghost chữ L, giữ phím lúc khởi động, 0 chập mạch, tối đa 1 hàng OUTPUT khi quét) và 55 kiểm tra tích hợp với LVGL thật (có điều hướng, mở app, OPTION, ESC, giữ 1 về Home, 300 lần vào/ra app không rò rỉ)
-- [x] Đã đấu dây theo `docs/keypad_wiring.svg` và chạy đúng trên board
-
-**Bước 5: màn ST7789, theme, bảng đăng ký, Settings**
-- [x] Màn ST7789 2.8": lúc đầu sai màu. Đoạn tô thử đỏ/xanh lá/xanh dương/trắng/đen hiện vàng/tím/lục lam/đen/trắng, nghĩa là vừa đảo màu vừa đổi chỗ đỏ-xanh dương. Sửa bằng `invertDisplay(false)` + `TFT_RGB_ORDER=TFT_BGR`, đã đúng trên board (mục 3.1). Cờ `-DTFT_INVERSION_ON` không có tác dụng như mong đợi nên không dùng
-- [x] Bố cục Main Screen và Pet đúng trên 320x240; chữ font mặc định hơi nhỏ nhưng được chọn giữ
-- [x] Theme: test trên máy tính đạt (chọn theme, khóa lạ giữ nguyên, nền đổi màu sau `reload()`, giữ vị trí focus, màn app dùng nền mới, 200 lần reload không rò rỉ). Trên board: đổi theme đổi màu nền và nút đúng
-- [x] Bảng đăng ký, `SettingsStore`, app Settings: test trên máy tính đạt: bảng đăng ký (giới hạn chọn, thứ tự theo bảng, ô dồn lên, khóa không trùng), lưu/khôi phục NVS (kể cả dữ liệu hỏng, khóa lạ, danh sách rỗng, NVS lỗi), tích hợp (mở Settings từ ô cuối, đổi theme, bật/tắt app, quay vòng, thoát, Main Screen hiện đúng sau khi tắt app, 100 lần vào/đổi theme/thoát không rò rỉ). Tổng 105 kiểm tra tích hợp đạt. Đã xác nhận chạy đúng trên board
-- Bài học test: số byte heap tăng một lần ở các lần chuyển app đầu tiên (LVGL cấp cache nhỏ), nên đo rò rỉ sau vài vòng khởi động nguội
-
-**Bước 6: thẻ SD**
-- [x] Sketch `tools/sd_test` trên board: lần đầu lỗi `f_mount failed (13) no valid FAT volume` (kể cả sau Format của Windows); format lại bằng SD Card Formatter (Overwrite format) thì mount OK ở 25 MHz, thẻ SDHC 7580 MB, đọc 4 ảnh + 3 file nhạc, tốc độ đọc khoảng 1,5 MB/s. Đấu dây đúng ngay từ đầu (lỗi do định dạng thẻ)
-- [x] `services/sd_storage` test trên máy tính (thẻ giả lập bằng thư mục thật, AddressSanitizer + UBSan, 48 kiểm tra đạt): chưa mount thì mọi hàm trả rỗng/false, thử 25 → 10 → 4 MHz, `listFiles` (nhiều đuôi, hoa/thường, bỏ file ẩn và thư mục, sắp xếp), đọc vào PSRAM nhiều chunk đúng nội dung, lỗi đọc giữa chừng, ghi/ghi đè/thiếu thư mục cha, `Reader` (open/read/seek/đóng tự động), khóa cân bằng và không lồng nhau, 1000 vòng không rò rỉ handle
-- [x] Đã xác nhận trên board: khởi động in `[SD] 4 anh, 3 bai nhac` (nhạc đã đổi sang MP3), màn hình và phím vẫn bình thường
-
-**Chat 1: Main Screen**
-- [x] Trên board: điều hướng 4/6/2/8 (kể cả widget trái), phím 5 mở app, nhớ vị trí focus
-- [x] Trên board: 6 icon trắng hiện đúng (5 app + Settings). Phát hiện: hai dòng tô màu icon bằng `Themes::current().icon` làm icon chìm vào nền nên đã bỏ; icon luôn trắng
-- [x] Đồng hồ: chạy từ 1/1 00:00 khi chưa có RTC (giờ hệ thống), hành vi dự kiến cho tới khi nối `TimeService`
-- [ ] Đổi theme (phím 3 tạm hoặc Settings): bộ icon đổi đúng theo theme, màu nút/viền focus/khung đổi đúng
-- [ ] 100 lần vào/ra app và đổi theme không rò rỉ (log `[AppManager]`)
-- Chưa có test máy tính (ASan) cho Main Screen
-
-**Chat 4: Slideshow widget**
-- [x] Build được trên board (sau khi sửa lỗi dán nhầm nội dung giữa slideshow_widget.cpp và slideshow_service.cpp)
-- [x]: Trên board: ảnh hiện đúng, phủ kín khung, cắt giữa không méo.
-- [x] Tắt/bật nguồn vẫn giữ ảnh đã chọn (/data/slideshow.txt)
-- [x] Thư mục /data không có: setPhoto trả false, app không treo
-- Chưa có test trên máy tính cho SlideshowService
-
-**Chat 3: Image service + Album**
-- [x] Test máy tính cho `image_resize` (ASan + UBSan, 32 kiểm tra đạt)
-- [x] Trên board: giải mã JPG, lưới thumbnail, xem toàn màn hình chạy ổn
-- [x] Phím 3 đặt ảnh widget: build được
-- [x] Trên board: xem ảnh bấm 3 thấy thông báo, về Main thấy đúng ảnh
-- [x] Trên board: ở lưới bấm 3 trên ô khác, ảnh widget đổi theo
-- [x] Trên board: thoát Album ngay khi thông báo còn hiện, không crash
-- [x] Rút thẻ SD rồi bấm 3: hiện "Khong luu duoc"
-
-**Chat 5: Audio service + Music Player**
-
-- [x] I2S: bíp 440 Hz ra loa (cần nối chân SD của MAX98357A vào 3V3, để hở thì không có tiếng)
-- [x] Phát MP3 từ SD, pause/resume, tua, tự chuyển bài khi app mở, rời app thì bài chạy hết rồi dừng
-- [x] Loa rè ở âm lượng cao: do quá tải; đã giới hạn mức hiển thị 100 = mức nội bộ 80
-- [x] Ảnh đĩa xoay: bản xoay trực tiếp bằng LVGL hơi nặng; đã chuyển sang dựng sẵn khung xoay
-
-**Chat 6: Visualizer**
-- [x] Test máy tính cho fft (ASan + UBSan, 2695 kiểm tra đạt, chạy lại trên máy người dùng)
-- [x] Test máy tính cho VisualizerApp bằng stub LVGL (1142 kiểm tra đạt ở 320x240 và 160x128, chạy lại trên máy người dùng): bố cục 3 kiểu, 7/9 qua widget gác, 4/6, ESC, callback sau onDestroy, 300 lần vào/ra không rò rỉ object, 4000 phím ngẫu nhiên. Không kiểm tra được vẽ thật và tốc độ
-- [x] Trên board: build và chạy ổn
-- [ ] 100-300 lần vào/ra app không rò rỉ (log [AppManager])
-- [ ] Đo FPS thực tế từng kiểu (đặc biệt waveform), chỉnh kFrameMs/kDbFloor/kDbRange/kTiltDb nếu cần
-
-**Chưa thử (đã có phần cứng, chưa đấu/viết):** DS3231.
+Chưa chọn giấy phép.
