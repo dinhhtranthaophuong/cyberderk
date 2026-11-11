@@ -9,9 +9,9 @@ namespace {
 const Theme kThemes[] = {
     {
         "pink", "Sakura",
-        /*bg*/ 0x471327, /*panel*/ 0xFFB7CE, /*accent*/ 0xF4A9BC,
-        /*text*/ 0xFFFFFF, /*textOnPanel*/ 0x7A3B52, /*focus*/ 0xFFFFFF, /*icon*/ 0xF4A9BC,
-        /*scrim*/ 0x000000, /*scrimOpa*/ 120, /*bgImage*/ nullptr,
+        /*bg*/ 0x471327, /*panel*/ 0xFFB7CE, /*accent*/ 0xDD55BB,
+        /*text*/ 0xFFFFFF, /*textOnPanel*/ 0xFFFFFF, /*focus*/ 0xFFCCFF, /*icon*/ 0xDD55BB,
+        /*scrim*/ 0x000000, /*scrimOpa*/ 0, /*bgImage*/ nullptr,
     },
     {
         "night", "Dull Night",
