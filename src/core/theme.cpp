@@ -25,6 +25,12 @@ const Theme kThemes[] = {
         /*text*/ 0xFFFFFF, /*textOnPanel*/ 0x0B3A28, /*focus*/ 0xFFFFFF, /*icon*/ 0x9FE8C6,
         /*scrim*/ 0x000000, /*scrimOpa*/ 120, /*bgImage*/ nullptr,
     },
+   {
+        "sundaysky", "Sunday Sky",
+        /*bg*/ 0xCDEBFA, /*panel*/ 0x7EC8E3, /*accent*/ 0x5BB5D9,
+        /*text*/ 0x1F4E6B, /*textOnPanel*/ 0x103A52, /*focus*/ 0x1F4E6B, /*icon*/ 0xFFFFFF,
+        /*scrim*/ 0xFFFFFF, /*scrimOpa*/ 120, /*bgImage*/ nullptr,
+    },
 };
 
 constexpr size_t kCount = sizeof(kThemes) / sizeof(kThemes[0]);
