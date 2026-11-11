@@ -138,8 +138,6 @@ Nếu màn hình sai màu hoặc nhiễu khi dùng module khác, xem mục 3.1 t
 
 ## Tài liệu
 
-- [`concept.md`](concept.md): ý tưởng và bố cục giao diện từng màn hình
-- [`instruction.md`](instruction.md): bối cảnh và quy tắc lập trình của dự án
 - [`ARCHITECTURE.md`](ARCHITECTURE.md): hợp đồng kiến trúc, API các service, quy ước phím, nhật ký kiểm thử
 
 ## Giấy phép
