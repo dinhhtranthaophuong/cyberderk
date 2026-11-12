@@ -1,12 +1,11 @@
 // Main Screen (launcher): nua trai = SlideshowWidget (anh + dong ho, focus duoc, phim 5 mo Album),
 // nua phai = luoi icon 2 cot x 3 hang. Vong focus theo phim 4/6: widget trai -> cot 1 -> cot 2 ->
 // widget trai. Phim 2/8 chi doi hang trong luoi (quay vong). Nho vi tri focus khi quay lai.
-// Gio: tam dung gio he thong (time()), sau nay doi sang TimeService::now().
+// Gio: TimeService::now() (DS3231, gio dia phuong; khong co chip thi service tu dung gio he thong).
 
 #include "apps/main_screen/main_screen.hpp"
 
 #include <lvgl.h>
-#include <time.h>
 #include <cstring>
 #include "core/theme.hpp"
 
@@ -19,6 +18,7 @@
 #include "core/app_registry.hpp"
 #include "services/input_service.hpp"
 #include "services/slideshow_service.hpp"
+#include "services/time_service.hpp"
 
 static_assert(GRID_COLS == 2 && GRID_ROWS == 3, "Main Screen dung luoi 2 cot x 3 hang");
 
@@ -154,20 +154,19 @@ void MainScreenApp::onTick(uint32_t nowMs) {
 // Chi sua label khi phut doi.
 void MainScreenApp::updateClock() {
   if (!left_.frame()) return;
-  const time_t t = time(nullptr);
-  const int32_t key = static_cast<int32_t>(t / 60);
+  const DateTime now = TimeService::now();
+  // Khoa phut tang nghiem ngat theo thoi gian (nam toi da 2099 van vua int32_t).
+  const int32_t key = (((static_cast<int32_t>(now.year) * 12 + (now.month - 1)) * 31 + (now.day - 1)) * 1440) +
+                      now.hour * 60 + now.minute;
   if (key == lastMinuteKey_) return;
   lastMinuteKey_ = key;
 
-  struct tm tmv;
-  localtime_r(&t, &tmv);
+  const char* mon = kMonths[(now.month + 11) % 12];  // month 1..12 -> 0..11, an toan ca khi month = 0
   char buf[24];
   if (UI_COMPACT) {  // man 160x128: nua trai chi ~74 px, tach 2 dong
-    snprintf(buf, sizeof(buf), "%s %d\n%02d:%02d", kMonths[tmv.tm_mon % 12], tmv.tm_mday,
-             tmv.tm_hour, tmv.tm_min);
+    snprintf(buf, sizeof(buf), "%s %d\n%02d:%02d", mon, now.day, now.hour, now.minute);
   } else {
-    snprintf(buf, sizeof(buf), "%s %d, %02d:%02d", kMonths[tmv.tm_mon % 12], tmv.tm_mday,
-             tmv.tm_hour, tmv.tm_min);
+    snprintf(buf, sizeof(buf), "%s %d, %02d:%02d", mon, now.day, now.hour, now.minute);
   }
   left_.setClockText(buf);
 }

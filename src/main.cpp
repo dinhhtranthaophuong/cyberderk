@@ -15,6 +15,7 @@
 #include "services/input_service.hpp"
 #include "services/settings_store.hpp"
 #include "services/sd_storage.hpp"
+#include "services/time_service.hpp"
 
 namespace {
 uint32_t lastReportMs = 0;
@@ -37,6 +38,8 @@ void setup() {
                   (unsigned)SdStorage::listFiles("/images", ".jpg;.jpeg").size(),
                   (unsigned)SdStorage::listFiles("/music", ".mp3").size());
   }
+
+  TimeService::begin();   // không cần LvglLock; có thể bỏ qua giá trị trả về vì hàm đã tự in log
   
   if (!LvglPort::init()) {
     Serial.println("LvglPort::init() THAT BAI");
