@@ -10,13 +10,19 @@ Cần pyserial. PlatformIO đã kèm sẵn pyserial trong python riêng của n�
 Hoặc: python3 -m pip install pyserial
 
 Chỉ một chương trình được mở cổng serial một lúc: tắt `pio device monitor` trước khi chạy.
-Script gửi lệnh đúng lúc chuyển giây của laptop nên sai số chỉ vài chục ms. Giờ gửi là GIỜ ĐỊA PHƯƠNG
-của laptop (TimeService lưu giờ địa phương), hãy chắc laptop đang đúng múi giờ ICT.
+Script gửi lệnh đúng lúc chuyển giây của laptop nên sai số chỉ vài chục ms (cần đồng hồ laptop đúng).
+
+Múi giờ: TimeService lưu giờ ĐỊA PHƯƠNG, nên script luôn gửi giờ UTC+7 (Việt Nam), KHÔNG phụ thuộc múi giờ
+đang đặt trên laptop/WSL (WSL thường để UTC, từng làm giờ trên board lệch 7 tiếng). Muốn múi giờ khác,
+thêm số giờ lệch UTC ở cuối, ví dụ giờ Nhật:
+  python3 tools/rtc_test/sync_time.py /dev/ttyACM0 9
 """
 import math
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+
+DEFAULT_UTC_OFFSET_H = 7.0
 
 try:
     import serial
@@ -39,9 +45,18 @@ def open_port(name: str) -> "serial.Serial":
 
 
 def main() -> int:
-    if len(sys.argv) != 2:
+    if len(sys.argv) not in (2, 3):
         print(__doc__)
         return 2
+    try:
+        offset_h = float(sys.argv[2]) if len(sys.argv) == 3 else DEFAULT_UTC_OFFSET_H
+    except ValueError:
+        print("Muc lech UTC phai la so gio, vi du 7")
+        return 2
+    if not -12 <= offset_h <= 14:
+        print("Muc lech UTC phai nam trong -12..14 gio")
+        return 2
+    tz = timezone(timedelta(hours=offset_h))
     try:
         ser = open_port(sys.argv[1])
     except (serial.SerialException, OSError) as e:
@@ -55,7 +70,7 @@ def main() -> int:
             now = time.time()
             target = math.floor(now) + 1            # đợi tới đầu giây kế tiếp rồi gửi giờ của giây đó
             time.sleep(max(0.0, target - now))
-            line = datetime.fromtimestamp(target).strftime("s %Y-%m-%d %H:%M:%S")
+            line = datetime.fromtimestamp(target, tz).strftime("s %Y-%m-%d %H:%M:%S")
             ser.write((line + "\n").encode())
             ser.flush()
 
