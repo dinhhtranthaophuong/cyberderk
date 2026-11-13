@@ -137,9 +137,9 @@ void SettingsApp::refreshFooter(bool refused) {
   if (!footer_) return;
   char buf[40];
   if (refused) {
-    snprintf(buf, sizeof(buf), "Da du %u app", (unsigned)AppRegistry::kMaxSelected);
+    snprintf(buf, sizeof(buf), "Max %u apps", (unsigned)AppRegistry::kMaxSelected);
   } else {
-    snprintf(buf, sizeof(buf), "Main Screen: %u/%u app", (unsigned)AppRegistry::selectedCount(),
+    snprintf(buf, sizeof(buf), "Main Screen: %u/%u apps", (unsigned)AppRegistry::selectedCount(),
              (unsigned)AppRegistry::kMaxSelected);
   }
   lv_label_set_text(footer_, buf);

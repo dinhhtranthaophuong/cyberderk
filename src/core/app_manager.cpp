@@ -45,7 +45,7 @@ class PlaceholderApp : public IApp {
     lv_obj_align(title, LV_ALIGN_CENTER, 0, -16);
 
     lv_obj_t* sub = lv_label_create(holder);
-    lv_label_set_text(sub, "(chua cai dat)");
+    lv_label_set_text(sub, "(not installed)");
     lv_obj_align(sub, LV_ALIGN_CENTER, 0, 2);
 
     lv_obj_t* hint = lv_label_create(holder);
