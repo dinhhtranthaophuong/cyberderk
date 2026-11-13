@@ -300,7 +300,7 @@ void MusicApp::buildRight(lv_obj_t* root) {
   lv_obj_set_pos(titleLbl_, x, pad);
   lv_label_set_long_mode(titleLbl_, LV_LABEL_LONG_SCROLL_CIRCULAR);
   lv_obj_set_style_text_color(titleLbl_, col(th.text), 0);
-  lv_label_set_text(titleLbl_, "Chua phat");
+  lv_label_set_text(titleLbl_, "Not playing");
 
   const int infoY = pad + 18;
   // Hang thong tin: trai = so bai (3/12), phai = bieu tuong loa + muc am luong
@@ -356,7 +356,7 @@ void MusicApp::rebuildPlaylist() {
     lv_obj_set_width(l, lv_pct(100));
     lv_label_set_long_mode(l, LV_LABEL_LONG_WRAP);
     lv_obj_set_style_text_color(l, col(Themes::current().text), 0);
-    lv_label_set_text(l, SdStorage::isMounted() ? "Khong co file .mp3 trong /music" : "Khong doc duoc the SD");
+    lv_label_set_text(l, SdStorage::isMounted() ? "No .mp3 files in /music" : "Cannot read SD card");
     return;
   }
 
@@ -421,10 +421,10 @@ void MusicApp::refreshStatus(bool force) {
     if (ctrlLbl_) lv_label_set_text(ctrlLbl_, ctrl);
 
     if (titleLbl_) {
-      if (st == AudioState::ERROR) lv_label_set_text(titleLbl_, "Loi doc file");
+      if (st == AudioState::ERROR) lv_label_set_text(titleLbl_, "Error");
       else if (active && playingIdx_ >= 0 && playingIdx_ < (int)names_.size())
         lv_label_set_text(titleLbl_, names_[playingIdx_].c_str());
-      else lv_label_set_text(titleLbl_, "Chua phat");
+      else lv_label_set_text(titleLbl_, "Not playing");
     }
     // Neu bai ket thuc hoac dung thi bo dau "dang phat" tren playlist
     if (!active && playingIdx_ >= 0 && st != AudioState::ERROR) {
