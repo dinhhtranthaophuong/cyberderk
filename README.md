@@ -14,7 +14,7 @@ Giao diện gồm một màn hình chính và các ứng dụng:
 | **Visualizer** | Hiển thị phổ/sóng âm thời gian thực bằng FFT 256 điểm, 3 kiểu hiệu ứng | Xong |
 | **Album** | Lưới thumbnail ảnh JPG từ thẻ SD, xem toàn màn hình, đặt ảnh làm ảnh widget Main Screen | Xong |
 | **Settings** | Chọn theme giao diện, chọn app hiển thị trên Main Screen (lưu vào flash NVS) | Xong |
-| **Calendar** | Lịch tháng dạng lưới, đánh dấu sự kiện | Chưa viết |
+| **Calendar** | Lịch tháng dạng lưới, đánh dấu sự kiện | Xong |
 
 Ngoài ra có **3 theme** (`pink` mặc định, `night`, `mint`), mỗi theme có bộ icon pixel art riêng (64x64).
 
@@ -27,7 +27,7 @@ Ngoài ra có **3 theme** (`pink` mặc định, `night`, `mint`), mỗi theme c
 | Lưu trữ | Module microSD (SPI, bus riêng), thẻ FAT32 |
 | Âm thanh | MAX98357A (I2S) + loa 4 Ω 3 W, mono |
 | Bàn phím | 9 công tắc cơ ma trận 3x3, không cần diode |
-| RTC | DS3231 (I2C), đã có phần cứng, chưa tích hợp phần mềm |
+| RTC | DS3231 (I2C) |
 
 ### Sơ đồ chân
 
