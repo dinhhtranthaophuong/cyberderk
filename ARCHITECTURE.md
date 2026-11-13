@@ -48,9 +48,9 @@ GPIO 26-37 (flash/PSRAM), 0/3/45/46 (strapping), 19/20 (USB), 43/44 (UART0).
 ```
 platformio.ini
 docs/
-  keypad_wiring.svg/.png   // sơ đồ nối bàn phím 3x3
-  st7789_wiring.svg/.png   // sơ đồ nối màn ST7789
-  sd_wiring.svg/.png       // sơ đồ nối module microSD (chỉ để xem)
+  keypad_wiring.png   // sơ đồ nối bàn phím 3x3
+  st7789_wiring.png   // sơ đồ nối màn ST7789
+  sd_wiring.png       // sơ đồ nối module microSD (chỉ để xem)
 tools/
   sd_test/sd_test.cpp      // sketch test thẻ SD riêng, build bằng env sd_test (không thuộc firmware chính)
   image_test/image_resize_test.cpp  // test máy tính cho image_resize (g++ + ASan, lệnh chạy ghi đầu file)
