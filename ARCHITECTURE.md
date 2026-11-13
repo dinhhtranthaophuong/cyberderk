@@ -4,7 +4,7 @@
 > Nếu cần đổi API hoặc header chung: **báo trước, sửa file này, rồi mới sửa code.**
 > Đọc kèm `concept.md` và `instruction.md`.
 
-**Trạng thái:** Chat 0 (Core + hạ tầng) được làm lại từ đầu theo từng bước, bước 1-5 đã chạy trên board: TFT + LVGL, phím qua serial, AppManager + launcher, bàn phím 3x3 thật, và bước 5 (màn ST7789 2.8", theme, bảng đăng ký app, Settings). Bước 6 (thẻ SD: mount đã chạy trên board, `services/sd_storage` đã viết, test trên máy tính và chạy đúng trên board). Còn các service/app khác (mục 8). Chat 3 (Image service + Album) xong và chạy đúng trên board. Chat 4 (Slideshow widget) xong về mặt code, đã build được. Chat 5 (Audio service + Music Player) xong và chạy đúng trên board: phát MP3 từ SD qua I2S, đĩa quay có ảnh, âm lượng, playlist, đã test trên board. Chat 6 (Visualizer) xong và chạy ổn trên board: FFT 256 điểm + VisualizerApp với 3 kiểu hiệu ứng (thanh phổ đối xứng ở giữa, waveform, thanh đối xứng hai viền), phím 7/9 đổi kiểu, 4/6 chỉnh dạng.
+**Trạng thái:** Chat 0 (Core + hạ tầng) được làm lại từ đầu theo từng bước, bước 1-5 đã chạy trên board: TFT + LVGL, phím qua serial, AppManager + launcher, bàn phím 3x3 thật, và bước 5 (màn ST7789 2.8", theme, bảng đăng ký app, Settings). Bước 6 (thẻ SD: mount đã chạy trên board, `services/sd_storage` đã viết, test trên máy tính và chạy đúng trên board). Còn các service/app khác (mục 8). Chat 3 (Image service + Album) xong và chạy đúng trên board. Chat 4 (Slideshow widget) xong về mặt code, đã build được. Chat 5 (Audio service + Music Player) xong và chạy đúng trên board: phát MP3 từ SD qua I2S, đĩa quay có ảnh, âm lượng, playlist, đã test trên board. Chat 6 (Visualizer) xong và chạy ổn trên board: FFT 256 điểm + VisualizerApp với 3 kiểu hiệu ứng (thanh phổ đối xứng ở giữa, waveform, thanh đối xứng hai viền), phím 7/9 đổi kiểu, 4/6 chỉnh dạng. Chat 2 (Time service) xong và chạy đúng trên board: DS3231 qua Wire thuần, giờ địa phương (múi giờ mặc định `ICT-7`), Main Screen dùng `TimeService::now()`, giữ giờ khi rút nguồn. `syncNtp` đã viết và test bằng SNTP giả trên máy tính nhưng chưa thử trên board.
 
 ---
 
@@ -17,7 +17,7 @@
 | microSD | Module SPI + thẻ 8GB FAT32 (đã đấu và mount được, đọc khoảng 1,5 MB/s). Bus riêng, không chung với TFT |
 | Audio | MAX98357A (I2S) + loa 4Ω 3W, mono (đã chạy trên board), chân SD của module phải nối 3V3 (để hở thì amp bị tắt, loa im); chân GAIN để hở (9 dB) |
 | Input | 9 công tắc cơ ma trận 3x3, không cần diode (đã chạy) |
-| RTC | DS3231 (I2C), có thể đồng bộ NTP khi có WiFi (đã có, chưa thử) |
+| RTC | DS3231 (I2C, địa chỉ 0x68, 100 kHz; module có kèm EEPROM AT24C32 ở 0x57, không dùng). Đã chạy trên board, giữ giờ khi rút nguồn nhờ pin. Đồng bộ NTP khi có WiFi: đã viết, chưa thử trên board |
 
 ### 1.1 Chân bị cấm trên N16R8
 GPIO 26-37 (flash/PSRAM), 0/3/45/46 (strapping), 19/20 (USB), 43/44 (UART0).
@@ -56,6 +56,9 @@ tools/
   image_test/image_resize_test.cpp  // test máy tính cho image_resize (g++ + ASan, lệnh chạy ghi đầu file)
   i2s_test/i2s_test.cpp    // test bíp 440 Hz, env i2s_test
   fft_test/fft_test.cpp    // test máy tính cho fft (g++ + ASan + UBSan, lệnh chạy ghi đầu file)
+  time_test/               // test máy tính cho time_service bằng STUB (stubs/: DS3231 giả, đồng hồ giả, WiFi/SNTP giả), g++ + ASan + UBSan (và TSan), lệnh chạy ghi đầu file time_test.cpp
+  rtc_test/rtc_test.cpp    // sketch test DS3231 trên board (lệnh serial s/t/r/i/p/h), env rtc_test, dùng chính services/time_service.cpp
+  rtc_test/sync_time.py    // đặt giờ board từ laptop qua serial (luôn gửi giờ UTC+7)
   visualizer_test/         // test máy tính cho VisualizerApp bằng STUB LVGL (stubs/), không phải LVGL thật
 src/
   main.cpp
@@ -261,6 +264,7 @@ constexpr int  LVGL_BUF_LINES = UI_H / 10;           // buffer 1/10 màn hình
 - `loop()` (task Arduino) và task LVGL cùng chạy trên Core 1 nhưng là hai task khác nhau, nên `AppManager::tick()` tự lấy `LvglLock` bên trong. Hàm `onCreate/onTick/onKey` của app luôn được gọi khi **đang giữ** `LvglLock`. Event callback của widget chạy trong task LVGL, cũng đang giữ khóa.
 - Task LVGL chạy ngay sau `LvglPort::init()`, nên trong `setup()` mọi thao tác LVGL (`InputService::init`, `AppManager::init`) phải nằm trong `LvglLock`.
 - TFT và SD ở **hai bus SPI khác nhau** nên không cần mutex giữa hai thiết bị này.
+- Bus I2C (DS3231) chỉ do `TimeService` đụng (quy tắc vàng số 1). `TimeService` có mutex đệ quy riêng nên `now()`/`set()` gọi được từ mọi task; riêng `syncNtp()` chặn tới 8 giây nên chỉ gọi từ task nền Core 0.
 - Nhưng SD bị **nhiều task dùng chung** (audio đọc nhạc, ImageService đọc ảnh) nên `SdStorage` có mutex nội bộ (đệ quy). Giữ khóa ngắn: đọc theo chunk 4-8 KB hoặc đọc cả file vào PSRAM rồi nhả khóa **trước khi** giải mã.
 - Audio dùng ring buffer >= 64 KB trong PSRAM để không bị đói dữ liệu khi SD bận ảnh.
 - Mọi buffer lớn (ảnh, audio, framebuffer, draw buffer LVGL) cấp bằng `heap_caps_malloc(..., MALLOC_CAP_SPIRAM)` qua `psram.hpp`. Ai cấp phát người đó giải phóng, hoặc ghi rõ trong comment API.
@@ -487,6 +491,17 @@ bool syncNtp(const char* tz);            // tùy chọn, khi có WiFi
 }
 ```
 
+Đã viết (`services/time_service.hpp/.cpp`), test máy tính đạt (mục 12) và chạy đúng trên board. **API ở trên không đổi**; header thật trong `src/` có thêm comment chi tiết. Hành vi cụ thể:
+
+- **Wire thuần**, tự đọc thanh ghi DS3231 (không dùng RTClib). I2C: `Pins::I2cSda/I2cScl` = GPIO 1/2, 100 kHz, timeout 50 ms, địa chỉ 0x68.
+- **Giờ lưu trong chip và giờ `now()` trả về là giờ ĐỊA PHƯƠNG**, không phải UTC. Múi giờ mặc định `ICT-7`; `begin()` đặt múi giờ hệ thống và nạp giờ RTC vào đồng hồ hệ thống.
+- `begin()` trả `true` chỉ khi có DS3231 **và** giờ trong chip đáng tin. Trả `false` khi: không có chip, lỗi I2C, **cờ OSF bật** (chip từng mất nguồn/pin) hoặc giờ trong chip hỏng. Khi `false`, `now()` dùng giờ hệ thống (bắt đầu từ 1970-01-01 07:00 ICT) cho tới khi có `set()` hoặc `syncNtp()` thành công. Gọi lại `begin()` trả kết quả lần đầu và không đọc lại chip (kể cả sau khi `set()` đã khôi phục giờ; lần khởi động sau mới trả `true`).
+- `now()`: cache tối đa 200 ms (nhiều nơi gọi không dồn I2C); lỗi I2C thì rơi về giờ hệ thống rồi tự phục hồi; thứ trong tuần luôn tự tính từ ngày chứ không tin thanh ghi.
+- `set()`: giá trị không hợp lệ (năm ngoài 2000-2099, ngày không tồn tại...) bị bỏ qua và in log; `weekday` do người gọi truyền vào bị bỏ qua; ghi xong thì xóa cờ OSF và đặt luôn giờ hệ thống. Nếu ghi chip lỗi, `now()` dùng giờ hệ thống cho tới lần `set()` thành công kế tiếp.
+- `syncNtp()`: yêu cầu WiFi đã kết nối sẵn (service không quản lý WiFi); **chặn tới 8 giây** nên chỉ gọi từ task nền Core 0, không gọi từ task LVGL hoặc `loop()`. `tz` rỗng hoặc `nullptr` = `ICT-7`. Hiện chưa có chỗ nào gọi hàm này.
+- Gọi `TimeService::begin()` trong `setup()` sau `SdStorage::begin()` và trước `SettingsStore::begin()` / `AppManager::init()`; không cần `LvglLock`.
+- Chưa có giao diện đặt giờ trong app. Hiện đặt giờ bằng `tools/rtc_test` (mục 10).
+
 ### 6.9 `core/app_factories.hpp`: factory của app
 
 Mỗi app cung cấp **một** hàm factory (đặt trong `apps/<tên>/<tên>_app.cpp`), trả về đối tượng cấp phát bằng `new`; AppManager sở hữu và `delete` sau `onDestroy()`.
@@ -618,7 +633,7 @@ const lv_img_dsc_t* image();          // nullptr nếu không có; con trỏ s�
 
 | App | Gọi service | Phím đặc thù | Ghi chú |
 |---|---|---|---|
-| Main Screen | Time (tạm dùng giờ hệ thống `time()`, đổi sang `TimeService::now()` ở Chat 2), Image (slideshow), Slideshow (SlideshowService) | 4/6 đi vòng widget trái → cột 1 → cột 2 → widget trái; 2/8 đổi hàng trong lưới (quay vòng); 5 mở app (widget trái mở Album) | Nửa trái: `SlideshowWidget` (`slideshow_widget.hpp/.cpp`), focus được, viền màu focus của theme; ngày giờ đè ở đáy (2 dòng khi `UI_COMPACT`); Ảnh nửa trái lấy từ `SlideshowService` (mục 6.13): `onCreate` gọi `request(kW, kH)`, `onTick` gọi `settled()`/`image()` rồi `setImage()` một lần. Khung trống (chưa chọn ảnh hoặc lỗi) hiện chữ "dinhh py", màu theo theme (`panel`, `textOnPanel`, `focus`, `scrim`). Nửa phải: lưới icon 2 cột x 3 hàng theo `AppRegistry::launcherSlots()` (mục 6.10): app người dùng chọn, ô trống (vẫn focus được, không làm gì), ô cuối là Settings. Nút lưới hiện icon 64x64 (AppRegistry::icon(id, theme), luôn màu trắng, không dùng ICON_SIZE) khi !UI_COMPACT, app chưa có icon hoặc màn nhỏ thì hiện tên. Nền nút, viền focus và chữ lấy từ theme (panel, focus, textOnPanel). Nhớ vị trí focus (kể cả widget trái) khi quay lại. ESC bị bỏ qua vì là màn gốc. Mở app bằng `AppManager::goTo()` |
+| Main Screen | Time (`TimeService::now()`, giờ địa phương từ DS3231), Image (slideshow), Slideshow (SlideshowService) | 4/6 đi vòng widget trái → cột 1 → cột 2 → widget trái; 2/8 đổi hàng trong lưới (quay vòng); 5 mở app (widget trái mở Album) | Nửa trái: `SlideshowWidget` (`slideshow_widget.hpp/.cpp`), focus được, viền màu focus của theme; ngày giờ đè ở đáy (2 dòng khi `UI_COMPACT`); Ảnh nửa trái lấy từ `SlideshowService` (mục 6.13): `onCreate` gọi `request(kW, kH)`, `onTick` gọi `settled()`/`image()` rồi `setImage()` một lần. Khung trống (chưa chọn ảnh hoặc lỗi) hiện chữ "dinhh py", màu theo theme (`panel`, `textOnPanel`, `focus`, `scrim`). Nửa phải: lưới icon 2 cột x 3 hàng theo `AppRegistry::launcherSlots()` (mục 6.10): app người dùng chọn, ô trống (vẫn focus được, không làm gì), ô cuối là Settings. Nút lưới hiện icon 64x64 (AppRegistry::icon(id, theme), luôn màu trắng, không dùng ICON_SIZE) khi !UI_COMPACT, app chưa có icon hoặc màn nhỏ thì hiện tên. Nền nút, viền focus và chữ lấy từ theme (panel, focus, textOnPanel). Nhớ vị trí focus (kể cả widget trái) khi quay lại. ESC bị bỏ qua vì là màn gốc. Mở app bằng `AppManager::goTo()` |
 | Settings | SettingsStore | 2/8 lên xuống (quay vòng), 4/6 hoặc 5 đổi theme ở hàng đầu, 5 bật/tắt app ở các hàng sau, 1 thoát | Hàng đầu: theme (`< tên >`). Các hàng sau: mỗi app `selectable` của bảng đăng ký với `[x]`/`[ ]`; chọn tối đa `kMaxSelected`, vượt thì báo "Da du N app". Chân màn hình ghi số app đã chọn. Mỗi thay đổi lưu flash ngay; đổi theme thì `AppManager::reload()` và nhớ hàng đang chọn. Danh sách cuộn dọc khi nhiều app. Do chat 0 viết |
 | Pet | Không dùng (trạng thái lưu trong RAM; sau này nối SdStorage vào /data/) | 4/6/2/8 chọn nút, 5 kích hoạt | 6 nút tròn quanh thú (3 trái, 3 phải): Eat, Play, Bath, Sleep, Skin và một ô trống. Eat/Play/Bath/Sleep có icon pixel và mặt nạ tối dần theo chỉ số (kim đồng hồ từ 12 giờ). Skin hiện màu lông và xoay vòng: tam thể, tuxedo, trắng, cam vằn. Mèo buồn khi một trong Eat/Play/Bath dưới 40. Sleep là vòng năng lượng: hết một vòng thì mèo tự ngủ, nền chuyển sang đêm, ngủ đầy thì tự dậy. Mèo là lưới pixel 20x20 phóng số nguyên lần (x3 trên 160x128, x6 trên 320x240), có hoạt ảnh chớp mắt, giật tai, vẫy đuôi, thở khi ngủ, phản ứng khi bấm nút. Nền gồm canvas ngày/đêm, mây trôi và sao nhấp nháy. Trạng thái thú ở một đối tượng toàn cục (PetState) nên vẫn chạy khi ở app khác. App gọi tick của sprite và nền trong onTick. Độc lập, không cần SD để chạy. Hình mèo và nền ngày/đêm không đổi theo theme |
 | Music | Audio, SdStorage, ImageService (qua DiscCover), đọc /data/slideshow.txt | 2/8 chọn bài; 5 phát bài đang chọn, hoặc Play/Pause nếu là bài đang phát; 4/6 tua ∓10 giây; 7/9 bài trước/sau; 3 (KEY_OPTION) tăng âm lượng; 1 về Home | Trái là đĩa quay (ảnh mặt đĩa dùng chung ảnh đã chọn cho widget Main Screen, chọn ở Album bằng phím 3), thanh tiến độ, thời gian, nút điều khiển; phải là tên bài (cuộn ngang), số bài, âm lượng (biểu tượng loa + thanh) và playlist quét /music/*.mp3 (tối đa 64 bài). Âm lượng hiển thị 10..100, bước 10; mức hiển thị 100 ứng với mức 80 của AudioService::setVolume (mức cao hơn bị rè trên loa này). Mặc định 50. Ảnh đĩa: task Core 0 giải mã, cắt vuông giữa, dựng sẵn 45 khung xoay cách nhau 8° vào PSRAM (khoảng 1,2 MB với đĩa 116 px), cắt tròn, phần góc tô màu nền theme; lúc phát chỉ đổi khung mỗi 100 ms. Chưa có ảnh hoặc lỗi thì đĩa hiện hai cung quay. Theme có ảnh nền (bgImage) sẽ lộ phần góc. Tự chuyển bài khi hết bài chỉ khi app đang mở; rời app thì bài chạy hết rồi dừng |
@@ -640,9 +655,9 @@ const lv_img_dsc_t* image();          // nullptr nếu không có; con trỏ s�
 
 | # | Chat | Phụ thuộc | Trạng thái |
 |---|---|---|---|
-| 0 | Core + hạ tầng: `platformio.ini`, `config/`, `lvgl_port`, `input_service`, `app_manager`, `app_registry`, `theme`, `settings_store`, app Settings, `psram` | - | Bước 1-5 xong và chạy đúng trên board (TFT/LVGL, phím serial, AppManager, bàn phím 3x3, màn ST7789 + theme + bảng đăng ký + Settings). Bước 6: `sd_storage` xong và chạy đúng trên board. Phần cứng chưa làm: I2S, DS3231 |
-| 1 | Main Screen (khung) + chuyển app, app stub | 0 | Xong và chạy đúng trên board: widget trái (đồng hồ + ảnh qua `SlideshowService`), focus/điều hướng hai nửa, phím 5 mở Album, icon app 3 bộ theo theme (64x64, trắng). Màu nút, viền focus, khung ảnh lấy từ theme. Chưa có test máy tính (ASan) cho Main Screen. Đồng hồ dùng giờ hệ thống cho tới Chat 2. |
-| 2 | Time service | 0 | Đã có DS3231, chưa viết |
+| 0 | Core + hạ tầng: `platformio.ini`, `config/`, `lvgl_port`, `input_service`, `app_manager`, `app_registry`, `theme`, `settings_store`, app Settings, `psram` | - | Bước 1-5 xong và chạy đúng trên board (TFT/LVGL, phím serial, AppManager, bàn phím 3x3, màn ST7789 + theme + bảng đăng ký + Settings). Bước 6: `sd_storage` xong và chạy đúng trên board. Phần cứng I2S (Chat 5) và DS3231 (Chat 2) đã làm sau đó |
+| 1 | Main Screen (khung) + chuyển app, app stub | 0 | Xong và chạy đúng trên board: widget trái (đồng hồ + ảnh qua `SlideshowService`), focus/điều hướng hai nửa, phím 5 mở Album, icon app 3 bộ theo theme (64x64, trắng). Màu nút, viền focus, khung ảnh lấy từ theme. Chưa có test máy tính (ASan) cho Main Screen. Đồng hồ đã chuyển sang `TimeService::now()` (Chat 2), hiện đúng giờ thật trên board. |
+| 2 | Time service | 0 | Xong và chạy đúng trên board: `TimeService` (Wire thuần, giờ địa phương ICT-7, cờ OSF, cache 200 ms, mutex), `tools/rtc_test` + `sync_time.py`, Main Screen dùng `TimeService::now()`. Test máy tính 160661 kiểm tra (ASan + UBSan). `syncNtp` đã viết, chưa thử trên board, chưa có chỗ gọi |
 | 3 | Image service + Album | 0 | Xong và chạy đúng trên board: giải mã JPG, lưới thumbnail, xem toàn màn hình. Test máy tính cho phần resize (32 kiểm tra). Phím 3 đặt ảnh widget: build được, chưa test đủ trên board (xem mục 12) |
 | 4 | Slideshow widget (Core 0) | 1, 3 | Xong, build được. Giải mã 1 ảnh ở Core 0, cache PSRAM, cắt giữa kiểu cover, lưu đường dẫn vào /data/slideshow.txt. Không có chu kỳ chuyển ảnh (người dùng chọn từ Album). Xong, build được. Phím chọn ảnh ở Album (phím 3) đã thêm và build được |
 | 5 | Audio service + Music Player | 0 | Xong và chạy đúng trên board: AudioService (minimp3 + I2S), Music Player, ảnh đĩa xoay, âm lượng. Chưa có test máy tính (ASan) cho audio_service. Chân I2S đã có trong `config/pins.hpp`; `audio_service.cpp`. |
@@ -667,8 +682,10 @@ Thứ tự gợi ý để sớm thấy kết quả: 0 → 1 → 8 → 2 → 3 �
 - [x] TFT: tô màu + vẽ chữ bằng TFT_eSPI thuần (ST7735S và ST7789)
 - [x] SD: mount, liệt kê file, đo tốc độ đọc (`tools/sd_test`, 25 MHz, khoảng 1,5 MB/s)
 - [x] I2S: phát tiếng bíp 440 Hz
-- [ ] DS3231: đọc/ghi giờ, in ra serial
+- [x] DS3231: đọc/ghi giờ, in ra serial (`tools/rtc_test`, giữ giờ khi rút nguồn đã thử khoảng 1 giờ)
 - [x] Kiểm tra `psramFound()` và `ESP.getFreePsram()`
+
+**DS3231 (`tools/rtc_test`):** env `rtc_test` trong `platformio.ini` có `build_src_filter` gồm `../tools/rtc_test/rtc_test.cpp` và `services/time_service.cpp` (cùng `build_flags` như `sd_test`). Nạp: `pio run -e rtc_test -t upload`, mở: `pio device monitor -e rtc_test`. Lệnh gõ trong monitor: `s YYYY-MM-DD HH:MM:SS` đặt giờ địa phương, `t` in giờ, `r` đọc thanh ghi thô + nhiệt độ chip + cờ OSF và đối chiếu với `TimeService::now()`, `i` quét I2C và in lại kết quả `begin()`, `p` bật/tắt dòng giờ mỗi giây, `h` trợ giúp. `tools/rtc_test/sync_time.py <cổng>` đặt giờ từ laptop và luôn gửi giờ UTC+7, không phụ thuộc múi giờ laptop (WSL thường để UTC); cần tắt `pio device monitor` trước vì một chương trình mới mở được cổng serial.
 
 ## 11. Quyết định còn mở
 
@@ -692,6 +709,11 @@ Thứ tự gợi ý để sớm thấy kết quả: 0 → 1 → 8 → 2 → 3 �
 - [x] Visualizer: không hiện tên bài (không cần API tên bài trong AudioService), 3 kiểu (thanh đối xứng giữa, waveform, thanh đối xứng hai viền), nền đen, FFT 256 ở Core 1, thoát app thì hủy, nhạc chạy nền
 - [ ] Visualizer: nếu bass thô trên board thì đổi FFT lên 512 (đổi một hằng constexpr)
 - [x] Icon app Main Screen: 3 bộ icon theo 3 theme, 64x64, luôn màu trắng (không tô theo theme); chọn bộ theo khóa theme
+- [x] Time service: Wire thuần (không RTClib), I2C 0x68 ở 100 kHz, DS3231 lưu giờ địa phương, múi giờ mặc định `ICT-7` (mục 6.8)
+- [x] Khi chưa có RTC tin cậy (không chip hoặc cờ OSF): dùng giờ hệ thống, `begin()` trả `false`. Main Screen khi đó dự kiến hiện `Jan 1, 07:00` (ICT) thay vì `Jan 1, 00:00` như trước
+- [ ] NTP (`TimeService::syncNtp`): đã viết, có test máy tính bằng SNTP giả, chưa thử trên board; chưa có chỗ gọi và chưa có cách cấp SSID/mật khẩu WiFi (quyết định khi làm WiFi)
+- [ ] Giao diện đặt giờ trong app (Settings hoặc Calendar): hiện chỉ đặt qua serial bằng `tools/rtc_test`
+- [ ] Thử trên board với firmware chính: kịch bản mất pin (cờ OSF) và rút dây I2C
 
 ## 12. Nhật ký kiểm thử chat 0 (làm lại từ đầu)
 
@@ -736,6 +758,16 @@ Bản làm trước bị boot loop: `StoreProhibited` trong `TFT_eSPI::init()` (
 - [ ] 100 lần vào/ra app và đổi theme không rò rỉ (log `[AppManager]`)
 - Chưa có test máy tính (ASan) cho Main Screen
 
+**Chat 2: Time service**
+- [x] Test máy tính cho `time_service` (`tools/time_test`, stub DS3231/đồng hồ/WiFi/SNTP giả): 160661 kiểm tra đạt với ASan + UBSan, đã chạy lại trên máy người dùng. Gồm: BCD, thứ trong tuần so với libc cho cả 2000-2099, chế độ 12 giờ, `begin()` (không chip, chip tốt, OSF, giờ hỏng), cache 200 ms (kể cả `millis()` quay vòng), lỗi I2C và tự phục hồi, `set()` (thanh ghi đúng, giá trị sai bị bỏ qua, ghi lỗi), `syncNtp` (chưa WiFi, thành công, timeout, cờ cũ, khôi phục từ OSF), 4 luồng đọc + 1 luồng ghi không có lần đọc rách. Chèn thử 5 lỗi cố ý vào bản sao thì cả 5 đều bị test bắt
+- [x] ThreadSanitizer chạy sạch trong môi trường của chat Time service. Trên máy người dùng TSan không chạy được (`unexpected memory mapping`, do ASLR của kernel mới, không phải lỗi code; cách xử lý: `setarch $(uname -m) -R <file>` hoặc `sudo sysctl vm.mmap_rnd_bits=28`), người dùng bỏ qua bước này
+- [x] Trên board (`tools/rtc_test`): đọc/ghi giờ, các lệnh serial và đặt giờ từ laptop chạy đúng. Rút nguồn khoảng 1 giờ rồi cắm lại, giờ vẫn đúng (pin giữ giờ)
+- [x] Trên board (firmware chính): Main Screen hiện đúng giờ thật từ `TimeService::now()`
+- Bài học: lúc đầu giờ lệch 7 tiếng vì WSL để múi giờ UTC và `sync_time.py` gửi giờ theo múi giờ của máy chạy; đã sửa script luôn gửi UTC+7
+- Bài học: test máy tính của sketch `rtc_test` bắt được lỗi trong chính sketch (mốc đo trôi `[drift]` lấy sai lúc RTC nhảy giờ); đã sửa
+
+**Chưa thử trên board:** NTP (`syncNtp`), kịch bản mất pin (cờ OSF) và rút dây I2C với firmware chính.
+
 **Chat 4: Slideshow widget**
 - [x] Build được trên board (sau khi sửa lỗi dán nhầm nội dung giữa slideshow_widget.cpp và slideshow_service.cpp)
 - [x]: Trên board: ảnh hiện đúng, phủ kín khung, cắt giữa không méo.
@@ -765,5 +797,3 @@ Bản làm trước bị boot loop: `StoreProhibited` trong `TFT_eSPI::init()` (
 - [x] Trên board: build và chạy ổn
 - [ ] 100-300 lần vào/ra app không rò rỉ (log [AppManager])
 - [ ] Đo FPS thực tế từng kiểu (đặc biệt waveform), chỉnh kFrameMs/kDbFloor/kDbRange/kTiltDb nếu cần
-
-**Chưa thử (đã có phần cứng, chưa đấu/viết):** DS3231.
