@@ -222,8 +222,8 @@ void AlbumApp::buildGrid() {
         lv_obj_set_width(emptyLbl_, UI_W - 4 * kPad);
         lv_obj_set_style_text_align(emptyLbl_, LV_TEXT_ALIGN_CENTER, 0);
         lv_obj_set_style_text_color(emptyLbl_, lv_color_hex(th.text), 0);
-        lv_label_set_text(emptyLbl_, SdStorage::isMounted() ? "Chua co anh. Chep file JPG vao /images tren the SD"
-                                                            : "Khong doc duoc the SD");
+        lv_label_set_text(emptyLbl_, SdStorage::isMounted() ? "No photos. Copy JPG files to /images on the SD card"
+                                                            : "Cannot read SD card");
         lv_obj_center(emptyLbl_);
         return;
     }
@@ -274,7 +274,7 @@ void AlbumApp::buildViewer() {
     hide(viewImg_);
 
     viewMsg_ = lv_label_create(viewer_);
-    lv_label_set_text(viewMsg_, "Dang tai...");
+    lv_label_set_text(viewMsg_, "Loading...");
     lv_obj_set_style_text_color(viewMsg_, lv_color_hex(th.text), 0);
     lv_obj_center(viewMsg_);
 
@@ -295,7 +295,7 @@ void AlbumApp::buildViewer() {
 
     // Gợi ý nhỏ, mờ ở góc trên phải, có nền scrim để vẫn đọc được trên ảnh sáng.
     viewHint_ = lv_label_create(viewer_);
-    lv_label_set_text(viewHint_, "3: dat nen");
+    lv_label_set_text(viewHint_, "3: set as widget photo");
     lv_obj_set_style_text_color(viewHint_, lv_color_hex(th.text), 0);
     lv_obj_set_style_text_opa(viewHint_, LV_OPA_70, 0);
     lv_obj_set_style_bg_color(viewHint_, lv_color_hex(th.scrim), 0);
@@ -471,7 +471,7 @@ void AlbumApp::showViewerIndex(int index) {
     viewIndex_ = index;
     releaseFull();
 
-    lv_label_set_text(viewMsg_, "Dang tai...");
+    lv_label_set_text(viewMsg_, "Loading...");
     lv_obj_center(viewMsg_);
     show(viewMsg_);
 
@@ -517,7 +517,7 @@ void AlbumApp::setAsWidgetPhoto(int index) {
     // Đường dẫn do SdStorage::listFiles trả về (bắt đầu bằng '/'); kiểm tra lại cho chắc.
     const std::string& path = files_[index];
     const bool ok = !path.empty() && path[0] == '/' && SlideshowService::setPhoto(path.c_str());
-    showToast(ok ? "Da dat lam anh nen" : "Khong luu duoc", millis());
+    showToast(ok ? "Set as widget photo" : "Failed to save", millis());
 }
 
 // ============================== Hàng đợi và task nền ==============================
@@ -607,7 +607,7 @@ void AlbumApp::applyResult(const Result& r) {
         show(viewImg_);
         hide(viewMsg_);
     } else {
-        lv_label_set_text(viewMsg_, "Loi anh");
+        lv_label_set_text(viewMsg_, "Image error");
         lv_obj_center(viewMsg_);
         show(viewMsg_);
     }
