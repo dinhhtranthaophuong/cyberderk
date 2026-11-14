@@ -22,6 +22,15 @@
 //   Kiểm tra: không treo, không rò rỉ khi app chạy lúc không có thẻ, và SdStorage có tự đọc
 //   lại được sau khi cắm thẻ không (probe in sd_probe_in).
 //
+// GIAI ĐOẠN 7 (Kind::PHOTO_SWAP): mỗi vòng đổi ảnh widget sang ảnh khác trong /images bằng
+//   SlideshowService::setPhoto (gọi lúc đang ở Pet, KHÔNG phải Main), vào Music ở lại
+//   kPhotoDwellMs cho dựng xong 45 khung đĩa, rồi về Main và lấy mẫu. Mục đích: xem bộ nhớ đệm
+//   khung đĩa của Music có được THAY khi đổi ảnh không (phẳng = thay, mỗi vòng tụt ~1,2 MB = cộng
+//   dồn). Dòng "PHOTO,...,psram_trong_music=" cho biết khung đã dựng xong lúc rời Music chưa
+//   (PSRAM phải thấp hơn mốc Main khoảng 1,2 MB, nếu không thì tăng kPhotoDwellMs).
+//   Job tự đọc /data/slideshow.txt lúc đầu và LUÔN trả ảnh widget về như cũ khi kết thúc hay bị hủy
+//   (nếu không trả được sẽ in CANH BAO: khi đó chọn lại ảnh trong Album bằng phím 3).
+//
 // Mẫu cuối warm-up là mốc tham chiếu. Kết luận mỗi job dựa trên: (mẫu cuối - mốc), đường
 // xu hướng bình phương tối thiểu, số task, và việc AppManager có thật sự chuyển app không.
 // Crash/reset giữa chừng: log sẽ in lại "MOC 0" từ đầu, hãy xem dòng cuối trước đó.
@@ -34,19 +43,9 @@
 //   -DLEAK_SKIP_PHASE34=1  bỏ giai đoạn 3 và 4 (theme, thoát nhanh)
 //   -DLEAK_SKIP_PHASE5=1   bỏ giai đoạn 5 (nhạc phát nền)
 //   -DLEAK_SKIP_PHASE6=1   bỏ giai đoạn 6 (rút/cắm thẻ SD, cần có người)
-//   -DLEAK_PHASE5_SUSPECTS_ONLY=1  chỉ chạy 4 job nghi vấn của giai đoạn 5
-
-#ifdef LEAK_PHASE5_SUSPECTS_ONLY
-#ifndef LEAK_SKIP_PHASE2
-#define LEAK_SKIP_PHASE2 1
-#endif
-#ifndef LEAK_SKIP_PHASE34
-#define LEAK_SKIP_PHASE34 1
-#endif
-#ifndef LEAK_SKIP_PHASE6
-#define LEAK_SKIP_PHASE6 1
-#endif
-#endif
+//   -DLEAK_PHASE5_SUSPECTS_ONLY=1  giai đoạn 5 chỉ chạy audio_idle, audio_visualizer, audio_quick_*
+//   -DLEAK_SKIP_PHASE7=1   bỏ giai đoạn 7 (đổi ảnh widget rồi vào Music)
+//   -DLEAK_ONLY_PHASE7=1   chỉ chạy giai đoạn 7 (= bỏ 2, 3, 4, 5, 6)
 
 #include <Arduino.h>
 #include <esp_heap_caps.h>
@@ -58,12 +57,29 @@
 
 #include "core/app_manager.hpp"
 #include "core/lvgl_port.hpp"
+#include "core/psram.hpp"
 #include "core/theme.hpp"
 #include "services/audio_service.hpp"
 #include "services/input_service.hpp"
 #include "services/sd_storage.hpp"
 #include "services/settings_store.hpp"
+#include "services/slideshow_service.hpp"
 #include "services/time_service.hpp"
+
+#ifdef LEAK_ONLY_PHASE7
+#ifndef LEAK_SKIP_PHASE2
+#define LEAK_SKIP_PHASE2 1
+#endif
+#ifndef LEAK_SKIP_PHASE34
+#define LEAK_SKIP_PHASE34 1
+#endif
+#ifndef LEAK_SKIP_PHASE5
+#define LEAK_SKIP_PHASE5 1
+#endif
+#ifndef LEAK_SKIP_PHASE6
+#define LEAK_SKIP_PHASE6 1
+#endif
+#endif
 
 namespace {
 
@@ -79,6 +95,10 @@ constexpr uint32_t kQuickMinMs = 50;         // thoát nhanh: thời gian ở l�
 constexpr uint32_t kQuickSpanMs = 400;       // ... cộng thêm 0..span-1 ms, lệch từng vòng
 constexpr uint32_t kQuickSettleMs = 3000;    // chờ task nền dọn xong sau khi thoát nhanh
 constexpr int kMaxCycles = 300;
+
+// Đổi ảnh widget (giai đoạn 7).
+constexpr uint32_t kPhotoDwellMs = 6000;  // ở trong Music đủ lâu để dựng 45 khung đĩa
+constexpr int kMaxPhotos = 16;            // số ảnh tối đa dùng để xoay vòng
 
 // Dứt tiếng (giai đoạn 5).
 constexpr uint32_t kWinMs = 500;          // độ dài cửa sổ đo tiến độ phát
@@ -96,7 +116,7 @@ constexpr uint32_t kProbeSlowMs = 2000;   // một lần liệt kê thư mục l
 constexpr int32_t kTolPsram = 512;
 constexpr int32_t kTolInternal = 512;
 
-enum class Kind : uint8_t { APP, QUICK_APP, THEME_SETTINGS, THEME_MAIN, IDLE, SD_PROBE };
+enum class Kind : uint8_t { APP, QUICK_APP, THEME_SETTINGS, THEME_MAIN, IDLE, SD_PROBE, PHOTO_SWAP };
 enum class Prompt : uint8_t { NONE, PULL_SD, INSERT_SD };
 
 struct Job {
@@ -150,6 +170,9 @@ constexpr Job kJobs[] = {
     {Kind::SD_PROBE, AppId::MAIN_SCREEN, "sd_probe_in", 1, 1, false, Prompt::INSERT_SD},
     {Kind::APP, AppId::APP_ALBUM, "sd_back_album", 2, 20},
     {Kind::APP, AppId::APP_MUSIC_PLAYER, "sd_back_music", 2, 20},
+#endif
+#ifndef LEAK_SKIP_PHASE7
+    {Kind::PHOTO_SWAP, AppId::APP_MUSIC_PLAYER, "music_photo_swap", 3, 20},
 #endif
 };
 constexpr int kNumJobs = sizeof(kJobs) / sizeof(kJobs[0]);
@@ -275,6 +298,10 @@ enum class Step : uint8_t {
   PROBE,             // SD_PROBE: liệt kê thư mục và in kết quả
   PROMPT,            // nhắc người dùng rút/cắm thẻ rồi đếm ngược
   FAIL,              // không bắt đầu được job (vd không phát được nhạc)
+  PHOTO_GOTO_AUX,    // PHOTO_SWAP: sang Pet (app không phải Main) để được phép đổi ảnh
+  PHOTO_SET,         // PHOTO_SWAP: gọi setPhoto rồi vào Music
+  PHOTO_DWELL,       // PHOTO_SWAP: ở trong Music cho dựng xong khung đĩa
+  PHOTO_RESTORE,     // PHOTO_SWAP: trả ảnh widget về như cũ
 };
 
 Phase g_phase = Phase::BOOT_WAIT;
@@ -461,6 +488,45 @@ void printProbe(const char* name, const char* when, const ProbeResult& p) {
 
 bool probeSlow(const ProbeResult& p) { return p.msImages > kProbeSlowMs || p.msMusic > kProbeSlowMs; }
 
+// ---------- Đổi ảnh widget (giai đoạn 7) ----------
+char g_photos[kMaxPhotos][kTrackLen];
+int g_photoCount = 0;
+int g_photoFail = 0;           // số lần setPhoto trả false
+bool g_photoChanged = false;   // đã gọi setPhoto: cuối job phải trả ảnh về như cũ
+char g_orig[kTrackLen];        // đường dẫn ảnh widget trước khi chạy job
+bool g_origValid = false;      // false = lúc đầu chưa chọn ảnh nào
+int g_restoreStage = 0;        // 0 sang Pet, 1 đặt lại ảnh, 2 về Main
+
+// Liệt kê ảnh và đọc ảnh widget hiện tại. Trả false nếu không đủ ảnh để xoay vòng.
+bool preparePhotos() {
+  g_photoCount = 0;
+  g_photoFail = 0;
+  g_photoChanged = false;
+  g_restoreStage = 0;
+  const std::vector<std::string> files = SdStorage::listFiles("/images", ".jpg;.jpeg");
+  for (size_t i = 0; i < files.size() && g_photoCount < kMaxPhotos; ++i) {
+    strncpy(g_photos[g_photoCount], files[i].c_str(), kTrackLen - 1);
+    g_photos[g_photoCount][kTrackLen - 1] = '\0';
+    ++g_photoCount;
+  }
+  g_origValid = false;
+  g_orig[0] = '\0';
+  size_t n = 0;
+  void* p = SdStorage::readFileToPsram("/data/slideshow.txt", &n);
+  if (p != nullptr) {
+    const char* s = static_cast<const char*>(p);
+    size_t m = 0;
+    while (m < n && m < kTrackLen - 1 && s[m] != '\n' && s[m] != '\r' && s[m] != '\0') {
+      g_orig[m] = s[m];
+      ++m;
+    }
+    g_orig[m] = '\0';
+    Psram::release(p);
+    g_origValid = (m > 0);
+  }
+  return g_photoCount >= 2;
+}
+
 // ---------- Điều khiển job ----------
 void printCsvHeader() {
   Serial.println("CSV,job,cycle,t_ms,heap_free,heap_largest,psram_free,psram_largest,tasks");
@@ -496,6 +562,7 @@ Step firstStepOf(Kind k) {
     case Kind::THEME_MAIN: return Step::THEME_WAIT_ENTER;
     case Kind::IDLE: return Step::IDLE_WAIT;
     case Kind::SD_PROBE: return Step::PROBE;
+    case Kind::PHOTO_SWAP: return Step::PHOTO_GOTO_AUX;
     default: return Step::ENTER;
   }
 }
@@ -520,6 +587,12 @@ void startJob(uint32_t now) {
   g_step = g_afterPrompt;
   Serial.printf("=== %s: %d vong khoi dong + %d vong do%s ===\n", j.name, j.warm, j.cycles,
                 j.audio ? " (co nhac nen)" : "");
+  if (j.kind == Kind::PHOTO_SWAP && !preparePhotos()) {
+    Serial.println("LOI: can it nhat 2 anh .jpg/.jpeg trong /images de doi anh widget");
+    g_startFail = true;
+    g_step = Step::FAIL;
+    return;
+  }
   if (j.audio) {
     resetMon();
     g_audioRestart = (j.prompt != Prompt::PULL_SD);  // sắp rút thẻ: đừng phát lại
@@ -571,8 +644,14 @@ void finishJob() {
                   g_mon.skipped, g_mon.restarts, g_mon.playFail,
                   audioStateName(AudioService::state()));
     stopAudio();
-  } else if (g_startFail) {
-    r.audioOk = false;
+  }
+  if (g_startFail && !j.audio) {
+    r.probeOk = false;
+    r.probeNote = "KHONG CHAY DUOC";
+  }
+  if (j.kind == Kind::PHOTO_SWAP && g_photoFail > 0) {
+    r.probeOk = false;
+    r.probeNote = "SETPHOTO LOI";
   }
   if (isThemeKind(j.kind)) restoreTheme();
 }
@@ -622,7 +701,13 @@ void abortJob(uint32_t now, const char* msg) {
   g_jobFailed = true;
   finishJob();  // theme job tự trả theme ban đầu, audio job tự dừng nhạc
   AppManager::goHome();
-  nextJob(now);
+  if (kJobs[g_job].kind == Kind::PHOTO_SWAP && g_photoChanged) {
+    g_restoreStage = 0;  // vẫn phải trả ảnh widget về như cũ trước khi sang job kế
+    g_step = Step::PHOTO_RESTORE;
+    g_stepStart = now;
+  } else {
+    nextJob(now);
+  }
 }
 
 // Kết thúc một vòng: lấy mẫu nếu là vòng mốc/vòng đo. Trả true khi job đã đủ vòng.
@@ -771,10 +856,102 @@ void runJob(uint32_t now) {
       if (now - g_stepStart < settle) break;
       if (endOfCycle(now)) {
         finishJob();
-        nextJob(now);
+        if (j.kind == Kind::PHOTO_SWAP) {  // trả ảnh widget về như cũ rồi mới sang job kế
+          g_restoreStage = 0;
+          g_step = Step::PHOTO_RESTORE;
+          g_stepStart = now;
+        } else {
+          nextJob(now);
+        }
       } else {
-        g_step = Step::ENTER;
+        g_step = (j.kind == Kind::PHOTO_SWAP) ? Step::PHOTO_GOTO_AUX : Step::ENTER;
         g_stepStart = now;
+      }
+      break;
+    }
+
+    // ---- PHOTO_SWAP: đổi ảnh widget (khi Main không hiện) rồi vào Music ----
+    case Step::PHOTO_GOTO_AUX:
+      AppManager::goTo(AppId::APP_PET);  // app nhẹ, KHÔNG phải Main (setPhoto cấm gọi khi Main hiện)
+      g_step = Step::PHOTO_SET;
+      g_stepStart = now;
+      break;
+
+    case Step::PHOTO_SET: {
+      if (AppManager::current() != AppId::APP_PET) {
+        if (now - g_stepStart > kSwitchTimeoutMs) abortJob(now, "AppManager khong chuyen sang Pet");
+        break;
+      }
+      const char* path = g_photos[g_cycle % g_photoCount];
+      bool ok;
+      {
+        LvglLock lock;
+        ok = SlideshowService::setPhoto(path);
+      }
+      g_photoChanged = true;
+      if (!ok) ++g_photoFail;
+      Serial.printf("PHOTO,%s,%d,%s,%d\n", j.name, g_cycle, path, ok ? 1 : 0);
+      AppManager::goTo(j.app);
+      g_arrived = false;
+      g_step = Step::PHOTO_DWELL;
+      g_stepStart = now;
+      break;
+    }
+
+    case Step::PHOTO_DWELL:
+      if (AppManager::current() != j.app) {
+        if (now - g_stepStart > kSwitchTimeoutMs) abortJob(now, "AppManager khong chuyen sang Music");
+        break;
+      }
+      if (!g_arrived) {  // tính giờ ở lại từ lúc Music thật sự hiện
+        g_arrived = true;
+        g_stepStart = now;
+      }
+      if (now - g_stepStart >= kPhotoDwellMs) {
+        Serial.printf("PHOTO,%s,%d,psram_trong_music=%lu\n", j.name, g_cycle,
+                      (unsigned long)take(now).psramFree);
+        AppManager::goHome();
+        g_step = Step::SETTLE;
+        g_stepStart = now;
+      }
+      break;
+
+    case Step::PHOTO_RESTORE: {
+      if (g_restoreStage == 0) {
+        AppManager::goTo(AppId::APP_PET);
+        g_restoreStage = 1;
+        g_stepStart = now;
+        break;
+      }
+      if (g_restoreStage == 1) {
+        if (AppManager::current() != AppId::APP_PET) {
+          if (now - g_stepStart > kSwitchTimeoutMs) {
+            Serial.println("CANH BAO: chua tra duoc anh widget ve cu (khong sang duoc Pet). "
+                           "Hay chon lai anh trong Album bang phim 3");
+            g_photoChanged = false;
+            nextJob(now);
+          }
+          break;
+        }
+        bool ok = true;
+        {
+          LvglLock lock;
+          if (g_origValid) {
+            ok = SlideshowService::setPhoto(g_orig);
+          } else {
+            SlideshowService::clearPhoto();
+          }
+        }
+        Serial.printf("PHOTO,khoi_phuc,%s,%d\n", g_origValid ? g_orig : "(khong co anh)", ok ? 1 : 0);
+        if (!ok) Serial.println("CANH BAO: khoi phuc anh widget that bai. Hay chon lai anh trong Album bang phim 3");
+        AppManager::goHome();
+        g_restoreStage = 2;
+        g_stepStart = now;
+        break;
+      }
+      if (AppManager::current() == AppId::MAIN_SCREEN || now - g_stepStart > kSwitchTimeoutMs) {
+        g_photoChanged = false;
+        nextJob(now);
       }
       break;
     }
