@@ -121,46 +121,57 @@ struct TaskMin {
 };
 TaskMin g_taskMin[kMaxTasks];
 
+// Tên task thử tra khi không có uxTaskGetSystemState (thêm tên khác: -DPERF_TASK_NAMES='"a","b"').
+#ifndef PERF_TASK_NAMES
+#define PERF_TASK_NAMES "loopTask", "lvgl", "LVGL", "lv_task", "audio", "audio_dec", "audio_out", "audio_task", "album", \
+                        "disc_cover", "slideshow", "Tmr Svc", "esp_timer", "ipc0", "ipc1", "IDLE0", "IDLE1"
+#endif
+
+void noteStack(const char* name, uint32_t hwm) {
+  int slot = -1;
+  for (int k = 0; k < kMaxTasks; ++k) {
+    if (g_taskMin[k].used && strncmp(g_taskMin[k].name, name, configMAX_TASK_NAME_LEN) == 0) { slot = k; break; }
+  }
+  if (slot < 0) {
+    for (int k = 0; k < kMaxTasks; ++k) {
+      if (!g_taskMin[k].used) {
+        slot = k;
+        g_taskMin[k].used = true;
+        strncpy(g_taskMin[k].name, name, configMAX_TASK_NAME_LEN - 1);
+        g_taskMin[k].name[configMAX_TASK_NAME_LEN - 1] = '\0';
+        g_taskMin[k].hwmMin = UINT32_MAX;
+        break;
+      }
+    }
+  }
+  if (slot >= 0 && hwm < g_taskMin[slot].hwmMin) g_taskMin[slot].hwmMin = hwm;
+}
+
 void sampleTaskStacks() {
 #ifndef PERF_NO_TASKSTATE
   static TaskStatus_t st[kMaxTasks];
   const UBaseType_t n = uxTaskGetSystemState(st, kMaxTasks, nullptr);
-  for (UBaseType_t i = 0; i < n; ++i) {
-    int slot = -1;
-    for (int k = 0; k < kMaxTasks; ++k) {
-      if (g_taskMin[k].used && strncmp(g_taskMin[k].name, st[i].pcTaskName, configMAX_TASK_NAME_LEN) == 0) {
-        slot = k;
-        break;
-      }
-    }
-    if (slot < 0) {
-      for (int k = 0; k < kMaxTasks; ++k) {
-        if (!g_taskMin[k].used) {
-          slot = k;
-          g_taskMin[k].used = true;
-          strncpy(g_taskMin[k].name, st[i].pcTaskName, configMAX_TASK_NAME_LEN - 1);
-          g_taskMin[k].name[configMAX_TASK_NAME_LEN - 1] = '\0';
-          g_taskMin[k].hwmMin = UINT32_MAX;
-          break;
-        }
-      }
-    }
-    if (slot >= 0 && st[i].usStackHighWaterMark < g_taskMin[slot].hwmMin) {
-      g_taskMin[slot].hwmMin = st[i].usStackHighWaterMark;
-    }
+  for (UBaseType_t i = 0; i < n; ++i) noteStack(st[i].pcTaskName, st[i].usStackHighWaterMark);
+#else
+  static const char* const names[] = {PERF_TASK_NAMES};
+  for (const char* nm : names) {
+    TaskHandle_t h = xTaskGetHandle(nm);
+    if (h) noteStack(nm, uxTaskGetStackHighWaterMark(h));
   }
 #endif
 }
 
 void printTaskStacks(const char* when) {
-#ifdef PERF_NO_TASKSTATE
-  Serial.printf("PERF,TASK,%s,khong_do_duoc_(PERF_NO_TASKSTATE)\n", when);
-#else
+  int cnt = 0;
   for (int k = 0; k < kMaxTasks; ++k) {
     if (!g_taskMin[k].used) continue;
+    ++cnt;
     Serial.printf("PERF,TASK,%s,%s,stack_con_trong_min_B=%lu\n", when, g_taskMin[k].name,
                   (unsigned long)g_taskMin[k].hwmMin);
   }
+#ifdef PERF_NO_TASKSTATE
+  Serial.printf("PERF,TASK,%s,so_task_tra_duoc=%d,(chi_tra_theo_ten_PERF_TASK_NAMES),tong_task_hien_co=%u\n", when, cnt,
+                (unsigned)uxTaskGetNumberOfTasks());
 #endif
 }
 
