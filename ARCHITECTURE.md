@@ -485,7 +485,7 @@ size_t readPcmTap(int16_t* dst, size_t n);
 **Ghi chú từ kiểm thử (mục 12.1):**
 - `positionMs()` tính từ số mẫu đã **đẩy ra I2S** (không phải số mẫu đã giải mã). Nhờ vậy đối chiếu `positionMs()` với đồng hồ thật trong từng cửa sổ 500 ms phát hiện được dứt tiếng (tỉ lệ < 0,85 là dứt). Muốn đo thì đọc `millis()` ngay lúc gọi, đừng dùng mốc thời gian của vòng lặp trước.
 - Sau `begin()` có hai task thường trú `audio_dec` và `audio_out` (tổng số task của firmware 7 → 9), không bị hủy khi thoát Music. Stack còn trống tối thiểu đo được: `audio_dec` 15060 B khi đang phát MP3 (31844 B lúc chưa phát), `audio_out` 3232 B.
-- 3 lỗi nhỏ đã được sửa: (1) `begin()` trả lại buffer PSRAM, gỡ driver I2S nếu `i2s_set_pin` lỗi, và tái sử dụng 2 mutex; (2) `seek()` chặn ở ±1 ngày và cộng dồn bão hòa trong `int64_t`; (3) `finished()` đọc/xóa cờ trong critical section `gFinMux`.
+- 3 lỗi nhỏ phát hiện ở chat 9 đã sửa (test máy tính và board đạt): (1) `begin()` giờ trả lại buffer PSRAM và gỡ driver I2S khi khởi tạo thất bại (hai khóa tạo một lần, dùng lại); (2) `seek()` chặn mỗi lần gọi ở ±86400 s và cộng dồn bão hòa, không còn tràn số; (3) `finished()` đọc/xóa/đặt cờ trong `portENTER_CRITICAL(&gFinMux)`. Riêng (3) chỉ dựa trên đọc code, test máy tính không phân biệt được bản cũ và mới (cửa sổ đua quá hẹp).
 
 ### 6.8 `services/time_service.hpp`
 
@@ -737,7 +737,7 @@ Thứ tự gợi ý để sớm thấy kết quả: 0 → 1 → 8 → 2 → 3 �
 - [ ] `SdStorage::isMounted()` không phản ánh việc rút thẻ (mục 6.5): sửa hoặc đổi tên/ghi chú cho đúng
 - [ ] Main Screen: khi thiếu RTC nên hiện `--:--` thay vì giờ giả `1/1 07:00`
 - [ ] `PET_DECAY_FAST` đang là 1 (giảm khoảng 100 điểm mỗi 10 phút, để thử); đặt 0 khi dùng thật
-- [x] 3 lỗi nhỏ của `audio_service` (mục 6.7): rò khi `begin()` lỗi I2S, `seek()` tràn số, `finished()` không nguyên tử (đã sửa)
+- [x] 3 lỗi nhỏ của `audio_service` (mục 6.7): đã sửa, test máy tính (`tools/audio_test`, có thêm `begin_pin_fail`, `finished_race`) và thử trên board đạt
 - [ ] Pet vào chậm (khoảng 165-180 ms) và chiếm 455 KB PSRAM: có thể tối ưu (dựng sprite/nền ít hơn hoặc lười) nếu muốn
 - [ ] `loop()` có thể bị chặn tới khoảng 340 ms khi chuyển app (thoát Album, vào Pet), không làm dứt tiếng nhạc; nếu sau này cần phản hồi phím nhanh hơn thì cân nhắc tách việc dọn Album khỏi `tick()`
 - [ ] Thời gian chuyển app đo "đầu-cuối" bởi `perf_test` luôn cao hơn số `[AppManager]` khoảng 60-90 ms (chưa rõ nguyên nhân: chờ vẽ khung/lượt `loop()`), cần tìm hiểu nếu muốn con số cảm nhận thật
@@ -897,6 +897,6 @@ Các task tạm `disc_cover` và `slideshow` chưa được đo (chỉ tồn t�
 - Khoảng cách tối đa giữa hai vòng `loop()`: 343 ms (do thoát Album hoặc vào Pet); không gây dứt tiếng.
 - Stack `loopTask` thấp nhất trong cả lần chạy: 5036 B.
 
-**Phát hiện (đã ghi ở mục 11):** 3 lỗi nhỏ của `audio_service` (đã sửa); `isMounted()` không đáng tin; mỗi lần gọi SD khi không có thẻ chặn khoảng 300 ms; Main Screen hiện giờ giả `1/1 07:00` khi thiếu RTC; `PET_DECAY_FAST = 1`; Pet vào chậm và nặng PSRAM; `loop()` bị chặn tới khoảng 340 ms khi chuyển app.
+**Phát hiện (đã ghi ở mục 11; 3 lỗi nhỏ của `audio_service` đã sửa sau đó, mục 6.7):** `isMounted()` không đáng tin; mỗi lần gọi SD khi không có thẻ chặn khoảng 300 ms; Main Screen hiện giờ giả `1/1 07:00` khi thiếu RTC; `PET_DECAY_FAST = 1`; Pet vào chậm và nặng PSRAM; `loop()` bị chặn tới khoảng 340 ms khi chuyển app.
 
 **Giới hạn của phép đo:** không đo FPS và tải CPU; độ phân giải thời gian chuyển app khoảng 5 ms; Calendar chưa được đo; phần đo có nhạc dùng một bài MP3 (`/music/exile.mp3`); các phép đo "đầu-cuối" có độ lệch cố định chưa giải thích (mục 11).
