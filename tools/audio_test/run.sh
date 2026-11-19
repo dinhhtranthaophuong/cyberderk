@@ -16,13 +16,13 @@ for STD in gnu++11 gnu++17; do
     TAG="$STD $SIMD"
     echo "################ $TAG"
     g++ -std=$STD $SIMD $FLAGS $INC -o "$OUT/audio_test" "$HERE/test/audio_test.cpp" "$HERE/stubs/rtos_stub.cpp" "$HERE/stubs/sd_stub.cpp" || { echo "BIEN DICH LOI ($TAG)"; exit 1; }
-    for SC in pre_begin begin_psram_fail begin_i2s_fail seek_extreme main; do
+    for SC in pre_begin begin_psram_fail begin_i2s_fail begin_pin_fail seek_extreme finished_race main; do
       "$OUT/audio_test" "$HERE/data" $SC > "$OUT/$SC.log" 2>&1
       rc=$?
       grep -E '^\[|PHAT HIEN|  FAIL|TREO|AddressSanitizer' "$OUT/$SC.log"
       ub=$(grep -c 'runtime error' "$OUT/$SC.log")
-      # seek_extreme co chu y goi seek(INT_MAX): UBSan bao tran so da biet (phat hien F-seek-tran-so)
-      if [ "$SC" = "seek_extreme" ]; then [ "$ub" -gt 0 ] && echo "  UBSan: $ub loi (da biet: seek(INT_MAX) tran so int)"; else [ "$ub" -gt 0 ] && { echo "  UBSan: $ub loi"; bad=1; }; fi
+      # seek_extreme goi seek(INT_MAX/INT_MIN): sau khi sua khong duoc con loi UBSan nao
+      [ "$ub" -gt 0 ] && { echo "  UBSan: $ub loi"; bad=1; }
       [ $rc -ne 0 ] && bad=1
     done
   done

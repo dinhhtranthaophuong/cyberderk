@@ -25,6 +25,8 @@ void psramResetCounter();
 // ---- I2S ----
 extern std::atomic<int> i2sInstallFail;      // 1 = install tra loi
 extern std::atomic<int> i2sInstallCalls;
+extern std::atomic<int> i2sPinFail;          // 1 = i2s_set_pin tra loi
+extern std::atomic<int> i2sUninstallCalls;
 extern std::atomic<int> i2sZeroCalls;
 extern i2s_config_t i2sCfg;
 extern i2s_pin_config_t i2sPins;

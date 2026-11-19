@@ -4,7 +4,7 @@
 > Nếu cần đổi API hoặc header chung: **báo trước, sửa file này, rồi mới sửa code.**
 > Đọc kèm `concept.md` và `instruction.md`.
 
-**Trạng thái:** Chat 0 (Core + hạ tầng) được làm lại từ đầu theo từng bước, bước 1-5 đã chạy trên board: TFT + LVGL, phím qua serial, AppManager + launcher, bàn phím 3x3 thật, và bước 5 (màn ST7789 2.8", theme, bảng đăng ký app, Settings). Bước 6 (thẻ SD: mount đã chạy trên board, `services/sd_storage` đã viết, test trên máy tính và chạy đúng trên board). Còn các service/app khác (mục 8). Chat 3 (Image service + Album) xong và chạy đúng trên board. Chat 4 (Slideshow widget) xong về mặt code, đã build được. Chat 5 (Audio service + Music Player) xong và chạy đúng trên board: phát MP3 từ SD qua I2S, đĩa quay có ảnh, âm lượng, playlist, đã test trên board. Chat 6 (Visualizer) xong và chạy ổn trên board: FFT 256 điểm + VisualizerApp với 3 kiểu hiệu ứng (thanh phổ đối xứng ở giữa, waveform, thanh đối xứng hai viền), phím 7/9 đổi kiểu, 4/6 chỉnh dạng. Chat 7 (Calendar) xong về mặt code, build được, dùng CalendarLogic thuần C++ (ngày/tháng/thứ, cộng ngày, parser JSON) nên test được trên máy tính; chưa thử trên board. Chat 2 (Time service) xong và chạy đúng trên board: DS3231 qua Wire thuần, giờ địa phương (múi giờ mặc định `ICT-7`), Main Screen dùng `TimeService::now()`, giữ giờ khi rút nguồn. `syncNtp` đã viết và test bằng SNTP giả trên máy tính nhưng chưa thử trên board.
+**Trạng thái:** Chat 0 (Core + hạ tầng) được làm lại từ đầu theo từng bước, bước 1-5 đã chạy trên board: TFT + LVGL, phím qua serial, AppManager + launcher, bàn phím 3x3 thật, và bước 5 (màn ST7789 2.8", theme, bảng đăng ký app, Settings). Bước 6 (thẻ SD: mount đã chạy trên board, `services/sd_storage` đã viết, test trên máy tính và chạy đúng trên board). Còn các service/app khác (mục 8). Chat 3 (Image service + Album) xong và chạy đúng trên board. Chat 4 (Slideshow widget) xong về mặt code, đã build được. Chat 5 (Audio service + Music Player) xong và chạy đúng trên board: phát MP3 từ SD qua I2S, đĩa quay có ảnh, âm lượng, playlist, đã test trên board. Chat 6 (Visualizer) xong và chạy ổn trên board: FFT 256 điểm + VisualizerApp với 3 kiểu hiệu ứng (thanh phổ đối xứng ở giữa, waveform, thanh đối xứng hai viền), phím 7/9 đổi kiểu, 4/6 chỉnh dạng. Chat 2 (Time service) xong và chạy đúng trên board: DS3231 qua Wire thuần, giờ địa phương (múi giờ mặc định `ICT-7`), Main Screen dùng `TimeService::now()`, giữ giờ khi rút nguồn. `syncNtp` đã viết và test bằng SNTP giả trên máy tính nhưng chưa thử trên board. Chat 9 (Tối ưu + kiểm thử) xong: kiểm thử rò rỉ và độ ổn định trên board, test máy tính cho audio_service, slideshow_service, Main Screen/Album/Pet, đo thời gian chuyển app, bộ nhớ, stack và chạy dài 30 phút trên board. Số liệu ở mục 12.1.
 
 ---
 
@@ -48,9 +48,9 @@ GPIO 26-37 (flash/PSRAM), 0/3/45/46 (strapping), 19/20 (USB), 43/44 (UART0).
 ```
 platformio.ini
 docs/
-  keypad_wiring.png   // sơ đồ nối bàn phím 3x3
-  st7789_wiring.png   // sơ đồ nối màn ST7789
-  sd_wiring.png       // sơ đồ nối module microSD (chỉ để xem)
+  keypad_wiring.svg/.png   // sơ đồ nối bàn phím 3x3
+  st7789_wiring.svg/.png   // sơ đồ nối màn ST7789
+  sd_wiring.svg/.png       // sơ đồ nối module microSD (chỉ để xem)
 tools/
   sd_test/sd_test.cpp      // sketch test thẻ SD riêng, build bằng env sd_test (không thuộc firmware chính)
   image_test/image_resize_test.cpp  // test máy tính cho image_resize (g++ + ASan, lệnh chạy ghi đầu file)
@@ -60,6 +60,11 @@ tools/
   rtc_test/rtc_test.cpp    // sketch test DS3231 trên board (lệnh serial s/t/r/i/p/h), env rtc_test, dùng chính services/time_service.cpp
   rtc_test/sync_time.py    // đặt giờ board từ laptop qua serial (luôn gửi giờ UTC+7)
   visualizer_test/         // test máy tính cho VisualizerApp bằng STUB LVGL (stubs/), không phải LVGL thật
+  leak_test/leak_test.cpp  // sketch kiểm thử rò rỉ + độ ổn định trên board (giai đoạn 0-7: vào/ra từng app, nhạc nền, rút/cắm SD, đổi ảnh widget), env leak_test (build_src_filter bỏ main.cpp, thêm file này; không sửa main.cpp)
+  perf_test/perf_test.cpp  // sketch đo hiệu năng trên board: thời gian chuyển app, bộ nhớ mỗi app, stack từng task, chạy dài (soak) có nhạc; env perf_test (cùng cách dựng với leak_test, thêm -DPERF_TEST=1). Cờ tùy chọn: PERF_SOAK_MIN (mặc định 30), PERF_REPS (8), PERF_SKIP_VISITS, PERF_SKIP_SOAK, PERF_NO_TASKSTATE, PERF_TASK_NAMES. Chạy kèm `pio device monitor | tee perf.log` để không mất log
+  audio_test/              // test máy tính cho audio_service bằng stub (I2S/FreeRTOS/SD giả), ASan + UBSan + TSan, kiểm tra đột biến; 4 cấu hình
+  slideshow_test/          // test máy tính cho slideshow_service (stub, JPEG giả, SD giả trong RAM), ASan/UBSan/TSan, kiểm tra đột biến; 4 cấu hình
+  app_test/                // test máy tính cho Main Screen/Album/Pet bằng LVGL 8.3.11 thật + stub phần cứng, ASan/UBSan/TSan, kiểm tra đột biến (30 mutant); chạy `sh run.sh quick`
 src/
   main.cpp
   lv_conf.h             // cấu hình LVGL (heap trong PSRAM, tick = millis())
@@ -346,7 +351,8 @@ Quy tắc:
 - `goTo()`/`goHome()` **không chuyển ngay** mà đặt cờ; việc chuyển thực hiện trong `tick()`. Nhờ vậy gọi từ event callback LVGL là an toàn (không xóa object đang xử lý event). Gọi `goTo` tới chính app đang chạy thì bỏ qua.
 - `reload()` cũng trì hoãn như `goTo()`: app hiện tại được dựng lại từ đầu với theme hiện tại. Trạng thái cần giữ qua lần dựng lại (vị trí focus, hàng đang chọn) thì app tự giữ ở biến tĩnh (mẫu: `lastFocusIdx` trong `main_screen.cpp`, `lastRow` trong `settings_app.cpp`).
 - `KEY_HOME` do AppManager xử lý (về Main Screen, bỏ qua nếu đang ở Main). `KEY_OPTION` chuyển tới `IApp::onKey()` của app hiện tại.
-- Mỗi lần chuyển, AppManager in một dòng `[AppManager] -> <tên> (N ms) | heap .. KB, psram .. KB` ra serial, dùng để theo dõi rò rỉ bộ nhớ.
+- Mỗi lần chuyển, AppManager in một dòng `[AppManager] -> <tên> (N ms) | heap .. KB, psram .. KB` ra serial, dùng để theo dõi rò rỉ bộ nhớ. `N ms` là thời gian dựng/hủy trong `tick()` (số đo thật sự của việc chuyển app, xem mục 12.1).
+- `tick()` chặn `loop()` suốt lần chuyển app (đo được tới khoảng 340 ms khi vào Pet hoặc thoát Album). Không gọi việc nặng khác trong `loop()` cùng lúc.
 - Riêng `AudioService` chạy nền độc lập với app, nên thoát Music Player nhạc vẫn phát (hoặc dừng, quyết định ở chat Music).
 
 ### 6.4 `services/input_service.hpp`
@@ -409,6 +415,11 @@ class Reader {
 
 Mọi hàm gọi được từ nhiều task: dùng chung một mutex đệ quy bên trong, khóa chỉ giữ trong từng lần đọc/ghi (tối đa 8 KB), không giữ lúc giải mã. Trước `begin()` hoặc khi mount lỗi, mọi hàm trả giá trị rỗng/false, không treo.
 
+**Khi thẻ bị rút (đo trên board, chưa sửa):**
+- **`isMounted()` không đáng tin:** vẫn trả `true` sau khi rút thẻ (chỉ phản ánh lần mount lúc khởi động). Muốn biết thẻ còn hay không thì dựa vào kết quả thật của lần đọc (`exists`/`listFiles`/`readFileToPsram`), đừng dựa vào `isMounted()`.
+- **Mỗi lần gọi SD khi không có thẻ chặn khoảng 300 ms** rồi mới trả rỗng/false. Gọi liên tiếp nhiều lần (ví dụ liệt kê rồi đọc từng file) có thể làm treo giao diện vài trăm ms mỗi lần. Hàm không treo vĩnh viễn và thẻ cắm lại thì tự đọc được tiếp. Tối ưu "fail nhanh" (nhớ thời điểm lỗi, bỏ qua vài giây) đã cân nhắc và để backlog (mục 11).
+- Đang phát nhạc mà rút thẻ: `AudioService` về `STOPPED`, không treo (mục 12.1).
+
 Thư mục trên thẻ SD: `/images/` (JPG, nhận cả `.jpg` và `.jpeg`), `/music/` (MP3), `/data/` (sự kiện lịch, trạng thái thú ảo, `slideshow.txt` là đường dẫn ảnh widget Main Screen, do `SlideshowService` tự tạo, không tạo tay). Thẻ phải được format FAT32 bằng SD Card Formatter (format nhanh của Windows trên thẻ từng dùng có thể để lại phân vùng mà ESP32 không đọc được, lỗi `no valid FAT volume`).
 
 ### 6.6 `services/image_service.hpp`
@@ -470,6 +481,11 @@ bool finished();                           // bài vừa kết thúc (đọc xon
 size_t readPcmTap(int16_t* dst, size_t n);
 }
 ```
+
+**Ghi chú từ kiểm thử (mục 12.1):**
+- `positionMs()` tính từ số mẫu đã **đẩy ra I2S** (không phải số mẫu đã giải mã). Nhờ vậy đối chiếu `positionMs()` với đồng hồ thật trong từng cửa sổ 500 ms phát hiện được dứt tiếng (tỉ lệ < 0,85 là dứt). Muốn đo thì đọc `millis()` ngay lúc gọi, đừng dùng mốc thời gian của vòng lặp trước.
+- Sau `begin()` có hai task thường trú `audio_dec` và `audio_out` (tổng số task của firmware 7 → 9), không bị hủy khi thoát Music. Stack còn trống tối thiểu đo được: `audio_dec` 15060 B khi đang phát MP3 (31844 B lúc chưa phát), `audio_out` 3232 B.
+- 3 lỗi nhỏ đã được sửa: (1) `begin()` trả lại buffer PSRAM, gỡ driver I2S nếu `i2s_set_pin` lỗi, và tái sử dụng 2 mutex; (2) `seek()` chặn ở ±1 ngày và cộng dồn bão hòa trong `int64_t`; (3) `finished()` đọc/xóa cờ trong critical section `gFinMux`.
 
 ### 6.8 `services/time_service.hpp`
 
@@ -623,7 +639,7 @@ const lv_img_dsc_t* image();          // nullptr nếu không có; con trỏ s�
 ```
 
 - Ảnh được xử lý kiểu "cover": service tự phóng/thu cho phủ kín khung rồi cắt chính giữa, lấy mẫu song tuyến tính RGB565 ra đúng kích thước khung (không méo, không dải trống). Ảnh nhỏ hơn khung được phóng to để phủ kín (ảnh quá nhỏ sẽ hơi mờ). Bước này không phụ thuộc cách `ImageService::decode` thu ảnh: service chỉ nhờ decode giải mã ở cỡ gần nguyên bản (tối đa 4 lần khung).
-- Kết quả cache trong PSRAM (khoảng 71 KB với khung 154x232), vào/ra Main Screen không giải mã lại. Pixel thuộc service, không thuộc widget, nên không bị giải phóng khi thoát Main Screen. Bộ đệm giải mã lớn hơn chỉ tồn tại tạm thời trong task, giải phóng ngay sau khi xử lý.
+- Kết quả cache trong PSRAM (khoảng 71 KB với khung 154x232), vào/ra Main Screen không giải mã lại. Pixel thuộc service, không thuộc widget, nên không bị giải phóng khi thoát Main Screen. Bộ đệm giải mã lớn hơn chỉ tồn tại tạm thời trong task, giải phóng ngay sau khi xử lý. Cache này là thiết kế có chủ đích, nên phép đo rò rỉ phải đặt ảnh widget trước khi lấy mốc.
 - Giải mã lỗi thì Main Screen hiện chữ cố định "dinhh py" và thử lại ở lần vào Main kế tiếp.
 - Mọi trạng thái chung bảo vệ bằng một mutex; khóa luôn lấy theo thứ tự mutex của service rồi tới khóa SD.
 
@@ -633,13 +649,13 @@ const lv_img_dsc_t* image();          // nullptr nếu không có; con trỏ s�
 
 | App | Gọi service | Phím đặc thù | Ghi chú |
 |---|---|---|---|
-| Main Screen | Time (`TimeService::now()`, giờ địa phương từ DS3231), Image (slideshow), Slideshow (SlideshowService) | 4/6 đi vòng widget trái → cột 1 → cột 2 → widget trái; 2/8 đổi hàng trong lưới (quay vòng); 5 mở app (widget trái mở Album) | Nửa trái: `SlideshowWidget` (`slideshow_widget.hpp/.cpp`), focus được, viền màu focus của theme; ngày giờ đè ở đáy (2 dòng khi `UI_COMPACT`); Ảnh nửa trái lấy từ `SlideshowService` (mục 6.13): `onCreate` gọi `request(kW, kH)`, `onTick` gọi `settled()`/`image()` rồi `setImage()` một lần. Khung trống (chưa chọn ảnh hoặc lỗi) hiện chữ "dinhh py", màu theo theme (`panel`, `textOnPanel`, `focus`, `scrim`). Nửa phải: lưới icon 2 cột x 3 hàng theo `AppRegistry::launcherSlots()` (mục 6.10): app người dùng chọn, ô trống (vẫn focus được, không làm gì), ô cuối là Settings. Nút lưới hiện icon 64x64 (AppRegistry::icon(id, theme), luôn màu trắng, không dùng ICON_SIZE) khi !UI_COMPACT, app chưa có icon hoặc màn nhỏ thì hiện tên. Nền nút, viền focus và chữ lấy từ theme (panel, focus, textOnPanel). Nhớ vị trí focus (kể cả widget trái) khi quay lại. ESC bị bỏ qua vì là màn gốc. Mở app bằng `AppManager::goTo()` |
-| Settings | SettingsStore | 2/8 lên xuống (quay vòng), 4/6 hoặc 5 đổi theme ở hàng đầu, 5 bật/tắt app ở các hàng sau, 1 thoát | Hàng đầu: theme (`< tên >`). Các hàng sau: mỗi app `selectable` của bảng đăng ký với `[x]`/`[ ]`; chọn tối đa `kMaxSelected`, vượt thì báo "Da du N app". Chân màn hình ghi số app đã chọn. Mỗi thay đổi lưu flash ngay; đổi theme thì `AppManager::reload()` và nhớ hàng đang chọn. Danh sách cuộn dọc khi nhiều app. Do chat 0 viết |
-| Pet | Không dùng (trạng thái lưu trong RAM; sau này nối SdStorage vào /data/) | 4/6/2/8 chọn nút, 5 kích hoạt | 6 nút tròn quanh thú (3 trái, 3 phải): Eat, Play, Bath, Sleep, Skin và một ô trống. Eat/Play/Bath/Sleep có icon pixel và mặt nạ tối dần theo chỉ số (kim đồng hồ từ 12 giờ). Skin hiện màu lông và xoay vòng: tam thể, tuxedo, trắng, cam vằn. Mèo buồn khi một trong Eat/Play/Bath dưới 40. Sleep là vòng năng lượng: hết một vòng thì mèo tự ngủ, nền chuyển sang đêm, ngủ đầy thì tự dậy. Mèo là lưới pixel 20x20 phóng số nguyên lần (x3 trên 160x128, x6 trên 320x240), có hoạt ảnh chớp mắt, giật tai, vẫy đuôi, thở khi ngủ, phản ứng khi bấm nút. Nền gồm canvas ngày/đêm, mây trôi và sao nhấp nháy. Trạng thái thú ở một đối tượng toàn cục (PetState) nên vẫn chạy khi ở app khác. App gọi tick của sprite và nền trong onTick. Độc lập, không cần SD để chạy. Hình mèo và nền ngày/đêm không đổi theo theme |
-| Music | Audio, SdStorage, ImageService (qua DiscCover), đọc /data/slideshow.txt | 2/8 chọn bài; 5 phát bài đang chọn, hoặc Play/Pause nếu là bài đang phát; 4/6 tua ∓10 giây; 7/9 bài trước/sau; 3 (KEY_OPTION) tăng âm lượng; 1 về Home | Trái là đĩa quay (ảnh mặt đĩa dùng chung ảnh đã chọn cho widget Main Screen, chọn ở Album bằng phím 3), thanh tiến độ, thời gian, nút điều khiển; phải là tên bài (cuộn ngang), số bài, âm lượng (biểu tượng loa + thanh) và playlist quét /music/*.mp3 (tối đa 64 bài). Âm lượng hiển thị 10..100, bước 10; mức hiển thị 100 ứng với mức 80 của AudioService::setVolume (mức cao hơn bị rè trên loa này). Mặc định 50. Ảnh đĩa: task Core 0 giải mã, cắt vuông giữa, dựng sẵn 45 khung xoay cách nhau 8° vào PSRAM (khoảng 1,2 MB với đĩa 116 px), cắt tròn, phần góc tô màu nền theme; lúc phát chỉ đổi khung mỗi 100 ms. Chưa có ảnh hoặc lỗi thì đĩa hiện hai cung quay. Theme có ảnh nền (bgImage) sẽ lộ phần góc. Tự chuyển bài khi hết bài chỉ khi app đang mở; rời app thì bài chạy hết rồi dừng |
-| Visualizer | Audio (`readPcmTap`) | 7/9 đổi kiểu hiệu ứng, 4/6 chỉnh dạng (số thanh; waveform: độ phóng biên độ), 1 thoát | Phím 7/9 không tới widget dưới dạng LV_EVENT_KEY (LVGL 8.3 chỉ dùng chúng để dời focus), nên app đặt hai widget "gác" 1x1 trong suốt hai bên widget chính trong group: focus bị dời sang widget gác nghĩa là người dùng bấm 7 hoặc 9, app trả focus về widget chính ngay trong callback. Kiểu và mức 4/6 nhớ ở biến tĩnh. Các hằng số chỉnh độ nhạy/độ mượt/fps (kFrameMs, kDbFloor, kDbRange, kTiltDb, kAttack, kFall) nằm đầu visualizer_app.cpp. Màu thanh lấy từ accent, vạch đỉnh từ focus; theme quá tối trên nền đen thì rơi về text, rồi trắng |
-| Calendar | Time, SdStorage (`/data/events.json`) | 2/8/4/6 di chuyển ngày, 7/9 đổi tháng, 5 xem sự kiện kế tiếp trong ngày, 3 (KEY_OPTION) về hôm nay | Tiêu đề tháng, hàng `S M T W T F S`, lưới ngày 7 cột x 6 hàng. Đọc `/data/events.json` lúc `onCreate` (Core 1, không qua task nền): `{"events":[{"date":"YYYY-MM-DD","title":"..."}]}`, bỏ qua mục sai ngày/thiếu title, tối đa 256 sự kiện, title tối đa 48 ký tự ASCII (ký tự ngoài ASCII hiện `?`). Không có file hoặc chưa mount SD thì lịch vẫn chạy, không có chấm đánh dấu. Ngày chọn: nền `panel` + viền `focus`; hôm nay (chưa chọn): viền `accent`; ngày có sự kiện: chấm nhỏ dưới số, màu `accent` (hoặc `textOnPanel` nếu đang chọn). Chưa có giao diện thêm sự kiện trên thiết bị, sửa file trực tiếp trên thẻ SD |
-| Album | Image, SdStorage | 5 xem toàn màn hình, 1 quay lại, 3 = đặt ảnh làm ảnh widget Main Screen | Lưới 4x4 (3x3 khi UI_COMPACT), tối đa 256 ảnh trong /images. Thumbnail giải mã ở task nền Core 0, kết quả về UI qua queue và onTick. 2/4/6/8 di chuyển quay vòng, 5 xem toàn màn hình (4/6 đổi ảnh, 5 hoặc 1 đóng), 1 ở lưới về Home. Phím 3 (KEY_OPTION) gọi SlideshowService::setPhoto() cho ảnh đang xem, hoặc ô đang chọn khi ở lưới. Thông báo “Da dat lam anh nen” hoặc “Khong luu duoc” hiện 1,5 giây, tự ẩn bằng millis() trong onTick. Màn xem ảnh có gợi ý mờ “3: dat nen” ở góc trên phải. |
+| Main Screen | Time (`TimeService::now()`, giờ địa phương từ DS3231), Image (slideshow), Slideshow (SlideshowService) | 4/6 đi vòng widget trái → cột 1 → cột 2 → widget trái; 2/8 đổi hàng trong lưới (quay vòng); 5 mở app (widget trái mở Album) | Nửa trái: `SlideshowWidget` (`slideshow_widget.hpp/.cpp`), focus được, viền màu focus của theme; ngày giờ đè ở đáy (2 dòng khi `UI_COMPACT`); Ảnh nửa trái lấy từ `SlideshowService` (mục 6.13): `onCreate` gọi `request(kW, kH)`, `onTick` gọi `settled()`/`image()` rồi `setImage()` một lần. Khung trống (chưa chọn ảnh hoặc lỗi) hiện chữ "dinhh py", màu theo theme (`panel`, `textOnPanel`, `focus`, `scrim`). Nửa phải: lưới icon 2 cột x 3 hàng theo `AppRegistry::launcherSlots()` (mục 6.10): app người dùng chọn, ô trống (vẫn focus được, không làm gì), ô cuối là Settings. Nút lưới hiện icon 64x64 (AppRegistry::icon(id, theme), luôn màu trắng, không dùng ICON_SIZE) khi !UI_COMPACT, app chưa có icon hoặc màn nhỏ thì hiện tên. Nền nút, viền focus và chữ lấy từ theme (panel, focus, textOnPanel). Nhớ vị trí focus (kể cả widget trái) khi quay lại. ESC bị bỏ qua vì là màn gốc. Mở app bằng `AppManager::goTo()`. Khi thiếu RTC tin cậy, đồng hồ hiện giờ giả `1/1 07:00` (chưa đổi thành `--:--`, mục 11) |
+| Settings | SettingsStore | 2/8 lên xuống (quay vòng), 4/6 hoặc 5 đổi theme ở hàng đầu, 5 bật/tắt app ở các hàng sau, 1 thoát | Hàng đầu: theme (`< tên >`). Các hàng sau: mỗi app `selectable` của bảng đăng ký với `[x]`/`[ ]`; chọn tối đa `kMaxSelected`, vượt thì báo "Da du N app". Chân màn hình ghi số app đã chọn. Mỗi thay đổi lưu flash ngay; đổi theme thì `AppManager::reload()` và nhớ hàng đang chọn. Danh sách cuộn dọc khi nhiều app. Do chat 0 viết. Vào/ra khoảng 17-19 ms, gần như không chiếm bộ nhớ |
+| Pet | Không dùng (trạng thái lưu trong RAM; sau này nối SdStorage vào /data/) | 4/6/2/8 chọn nút, 5 kích hoạt | 6 nút tròn quanh thú (3 trái, 3 phải): Eat, Play, Bath, Sleep, Skin và một ô trống. Eat/Play/Bath/Sleep có icon pixel và mặt nạ tối dần theo chỉ số (kim đồng hồ từ 12 giờ). Skin hiện màu lông và xoay vòng: tam thể, tuxedo, trắng, cam vằn. Mèo buồn khi một trong Eat/Play/Bath dưới 40. Sleep là vòng năng lượng: hết một vòng thì mèo tự ngủ, nền chuyển sang đêm, ngủ đầy thì tự dậy. Mèo là lưới pixel 20x20 phóng số nguyên lần (x3 trên 160x128, x6 trên 320x240), có hoạt ảnh chớp mắt, giật tai, vẫy đuôi, thở khi ngủ, phản ứng khi bấm nút. Nền gồm canvas ngày/đêm, mây trôi và sao nhấp nháy. Trạng thái thú ở một đối tượng toàn cục (PetState) nên vẫn chạy khi ở app khác. App gọi tick của sprite và nền trong onTick. Độc lập, không cần SD để chạy. Hình mèo và nền ngày/đêm không đổi theme. **Chi phí (đo trên board):** nặng nhất trong các app: chiếm khoảng 455 KB PSRAM khi đang mở (trả lại đủ khi thoát) và vào mất khoảng 165-180 ms (các app khác 17-70 ms), trong lúc đó `loop()` bị chặn tới khoảng 270 ms. `PET_DECAY_FAST = 1` là chế độ thử (chỉ số giảm khoảng 100 điểm mỗi 10 phút); khi dùng thật nên đặt 0 (mục 11) |
+| Music | Audio, SdStorage, ImageService (qua DiscCover), đọc /data/slideshow.txt | 2/8 chọn bài; 5 phát bài đang chọn, hoặc Play/Pause nếu là bài đang phát; 4/6 tua ∓10 giây; 7/9 bài trước/sau; 3 (KEY_OPTION) tăng âm lượng; 1 về Home | Trái là đĩa quay (ảnh mặt đĩa dùng chung ảnh đã chọn cho widget Main Screen, chọn ở Album bằng phím 3), thanh tiến độ, thời gian, nút điều khiển; phải là tên bài (cuộn ngang), số bài, âm lượng (biểu tượng loa + thanh) và playlist quét /music/*.mp3 (tối đa 64 bài). Âm lượng hiển thị 10..100, bước 10; mức hiển thị 100 ứng với mức 80 của AudioService::setVolume (mức cao hơn bị rè trên loa này). Mặc định 50. Ảnh đĩa: task Core 0 giải mã, cắt vuông giữa, dựng sẵn 45 khung xoay cách nhau 8° vào PSRAM (khoảng 1,2 MB với đĩa 116 px), cắt tròn, phần góc tô màu nền theme; lúc phát chỉ đổi khung mỗi 100 ms. Chưa có ảnh hoặc lỗi thì đĩa hiện hai cung quay. Theme có ảnh nền (bgImage) sẽ lộ phần góc. Tự chuyển bài khi hết bài chỉ khi app đang mở; rời app thì bài chạy hết rồi dừng. **Bộ nhớ còn giữ sau khi thoát (chấp nhận, có chủ đích):** bộ đệm 45 khung đĩa (khoảng 1,2 MB PSRAM) được giữ lại như cache để lần vào sau không dựng lại; nó được thay khi đổi ảnh widget. Lần vào Music đầu tiên làm PSRAM trống giảm khoảng 1,38 MB và heap nội bộ giảm khoảng 47 KB (gồm cache đĩa, ring PCM 128 KB, hai task audio), sau đó không tăng thêm (đo 8 lần vào/ra: lệch tối đa vài chục byte). Khi đã có cache, vào/ra Music chiếm thêm khoảng 2 KB PSRAM + 1 KB heap, mất 62-72 ms (lần đầu hơi lâu hơn, khoảng 17 ms). Đây là phần PSRAM chiếm thường trực lớn nhất của firmware |
+| Visualizer | Audio (`readPcmTap`) | 7/9 đổi kiểu hiệu ứng, 4/6 chỉnh dạng (số thanh; waveform: độ phóng biên độ), 1 thoát | Phím 7/9 không tới widget dưới dạng LV_EVENT_KEY (LVGL 8.3 chỉ dùng chúng để dời focus), nên app đặt hai widget "gác" 1x1 trong suốt hai bên widget chính trong group: focus bị dời sang widget gác nghĩa là người dùng bấm 7 hoặc 9, app trả focus về widget chính ngay trong callback. Kiểu và mức 4/6 nhớ ở biến tĩnh. Các hằng số chỉnh độ nhạy/độ mượt/fps (kFrameMs, kDbFloor, kDbRange, kTiltDb, kAttack, kFall) nằm đầu visualizer_app.cpp. Màu thanh lấy từ accent, vạch đỉnh từ focus; theme quá tối trên nền đen thì rơi về text, rồi trắng. Chi phí đo trên board: vào/ra 17-20 ms, chiếm khoảng 7 KB PSRAM + 3 KB heap khi mở |
+| Calendar | Time, SdStorage (`/data/events.json`) | 2/8/4/6 di chuyển ngày, 7/9 đổi tháng | Tiêu đề tháng, hàng `S M T W T F S`, lưới ngày 7 cột x 6 hàng. Không thuộc phạm vi chat 9 nên chưa được đo hay kiểm thử rò rỉ |
+| Album | Image, SdStorage | 5 xem toàn màn hình, 1 quay lại, 3 = đặt ảnh làm ảnh widget Main Screen | Lưới 4x4 (3x3 khi UI_COMPACT), tối đa 256 ảnh trong /images. Thumbnail giải mã ở task nền Core 0, kết quả về UI qua queue và onTick. 2/4/6/8 di chuyển quay vòng, 5 xem toàn màn hình (4/6 đổi ảnh, 5 hoặc 1 đóng), 1 ở lưới về Home. Phím 3 (KEY_OPTION) gọi SlideshowService::setPhoto() cho ảnh đang xem, hoặc ô đang chọn khi ở lưới. Thông báo "Da dat lam anh nen" hoặc "Khong luu duoc" hiện 1,5 giây, tự ẩn bằng millis() trong onTick. Màn xem ảnh có gợi ý mờ "3: dat nen" ở góc trên phải. Chi phí đo trên board (9 ảnh): vào khoảng 50-59 ms, chiếm khoảng 58 KB PSRAM + 10 KB heap + 1 task worker tạm. **Thoát Album chậm hơn các app khác**: thường 30-70 ms, thỉnh thoảng 120-270 ms (phải dừng worker và dọn thumbnail), làm `loop()` bị chặn tương ứng |
 
 ### 7.1 Quy ước giao diện
 
@@ -656,15 +672,15 @@ const lv_img_dsc_t* image();          // nullptr nếu không có; con trỏ s�
 | # | Chat | Phụ thuộc | Trạng thái |
 |---|---|---|---|
 | 0 | Core + hạ tầng: `platformio.ini`, `config/`, `lvgl_port`, `input_service`, `app_manager`, `app_registry`, `theme`, `settings_store`, app Settings, `psram` | - | Bước 1-5 xong và chạy đúng trên board (TFT/LVGL, phím serial, AppManager, bàn phím 3x3, màn ST7789 + theme + bảng đăng ký + Settings). Bước 6: `sd_storage` xong và chạy đúng trên board. Phần cứng I2S (Chat 5) và DS3231 (Chat 2) đã làm sau đó |
-| 1 | Main Screen (khung) + chuyển app, app stub | 0 | Xong và chạy đúng trên board: widget trái (đồng hồ + ảnh qua `SlideshowService`), focus/điều hướng hai nửa, phím 5 mở Album, icon app 3 bộ theo theme (64x64, trắng). Màu nút, viền focus, khung ảnh lấy từ theme. Chưa có test máy tính (ASan) cho Main Screen. Đồng hồ đã chuyển sang `TimeService::now()` (Chat 2), hiện đúng giờ thật trên board. |
+| 1 | Main Screen (khung) + chuyển app, app stub | 0 | Xong và chạy đúng trên board: widget trái (đồng hồ + ảnh qua `SlideshowService`), focus/điều hướng hai nửa, phím 5 mở Album, icon app 3 bộ theo theme (64x64, trắng). Màu nút, viền focus, khung ảnh lấy từ theme. Đã có test máy tính với LVGL thật (`tools/app_test`, chat 9). Đồng hồ đã chuyển sang `TimeService::now()` (Chat 2), hiện đúng giờ thật trên board. |
 | 2 | Time service | 0 | Xong và chạy đúng trên board: `TimeService` (Wire thuần, giờ địa phương ICT-7, cờ OSF, cache 200 ms, mutex), `tools/rtc_test` + `sync_time.py`, Main Screen dùng `TimeService::now()`. Test máy tính 160661 kiểm tra (ASan + UBSan). `syncNtp` đã viết, chưa thử trên board, chưa có chỗ gọi |
-| 3 | Image service + Album | 0 | Xong và chạy đúng trên board: giải mã JPG, lưới thumbnail, xem toàn màn hình. Test máy tính cho phần resize (32 kiểm tra). Phím 3 đặt ảnh widget: build được, chưa test đủ trên board (xem mục 12) |
-| 4 | Slideshow widget (Core 0) | 1, 3 | Xong, build được. Giải mã 1 ảnh ở Core 0, cache PSRAM, cắt giữa kiểu cover, lưu đường dẫn vào /data/slideshow.txt. Không có chu kỳ chuyển ảnh (người dùng chọn từ Album). Xong, build được. Phím chọn ảnh ở Album (phím 3) đã thêm và build được |
-| 5 | Audio service + Music Player | 0 | Xong và chạy đúng trên board: AudioService (minimp3 + I2S), Music Player, ảnh đĩa xoay, âm lượng. Chưa có test máy tính (ASan) cho audio_service. Chân I2S đã có trong `config/pins.hpp`; `audio_service.cpp`. |
-| 6 | Visualizer | 5 | Xong và chạy ổn trên board: fft + VisualizerApp 3 kiểu, 7/9 đổi kiểu, 4/6 chỉnh dạng. Test máy tính đạt (fft 2695 kiểm tra, VisualizerApp 1142 kiểm tra bằng stub LVGL). Chưa đo FPS và chưa kiểm tra rò rỉ qua nhiều lần vào/ra trên board |
-| 7 | Calendar | 2 | Xong về mặt code, build được: CalendarLogic (ngày trong tháng, thứ Sakamoto, cộng/trừ ngày, đổi tháng, parser JSON thủ công cho `/data/events.json`) tách thuần C++. Đọc sự kiện lúc onCreate, chấm đánh dấu ngày có sự kiện, phím 5 xem lần lượt khi nhiều sự kiện/ngày, phím 3 về hôm nay. Chưa có test máy tính (ASan), chưa thử trên board |
-| 8 | Pet | 0 | Xong và chạy đúng trên board: chỉ số, icon pixel, nền ngày/đêm động, mèo ngủ, hoạt ảnh. Chưa lưu SD (chờ SD và DS3231). Tốc độ giảm chỉ số đã chốt ở mức hiện tại (PET_DECAY_FAST = 1) |
-| 9 | Tối ưu + kiểm thử | tất cả | |
+| 3 | Image service + Album | 0 | Xong và chạy đúng trên board: giải mã JPG, lưới thumbnail, xem toàn màn hình. Test máy tính cho phần resize (32 kiểm tra) và cho Album (`tools/app_test`). Phím 3 đặt ảnh widget đã test trên board (mục 12) |
+| 4 | Slideshow widget (Core 0) | 1, 3 | Xong và chạy đúng trên board. Giải mã 1 ảnh ở Core 0, cache PSRAM, cắt giữa kiểu cover, lưu đường dẫn vào /data/slideshow.txt. Không có chu kỳ chuyển ảnh (người dùng chọn từ Album). Phím chọn ảnh ở Album (phím 3) đã thêm. Test máy tính `tools/slideshow_test` (chat 9) |
+| 5 | Audio service + Music Player | 0 | Xong và chạy đúng trên board: AudioService (minimp3 + I2S), Music Player, ảnh đĩa xoay, âm lượng. Test máy tính `tools/audio_test` (chat 9). Chân I2S đã có trong `config/pins.hpp`; `audio_service.cpp`. |
+| 6 | Visualizer | 5 | Xong và chạy ổn trên board: fft + VisualizerApp 3 kiểu, 7/9 đổi kiểu, 4/6 chỉnh dạng. Test máy tính đạt (fft 2695 kiểm tra, VisualizerApp 1142 kiểm tra bằng stub LVGL). Đã kiểm tra rò rỉ qua nhiều lần vào/ra trên board (chat 9). Chưa đo FPS bằng số (xem bằng mắt thấy mượt) |
+| 7 | Calendar | 2 | |
+| 8 | Pet | 0 | Xong và chạy đúng trên board: chỉ số, icon pixel, nền ngày/đêm động, mèo ngủ, hoạt ảnh. Chưa lưu SD (chờ SD và DS3231). Tốc độ giảm chỉ số đã chốt ở mức hiện tại (PET_DECAY_FAST = 1; nên đặt 0 khi dùng thật). Test máy tính `tools/app_test` (chat 9) |
+| 9 | Tối ưu + kiểm thử | tất cả | Xong (trừ Calendar, ngoài phạm vi): A) kiểm thử rò rỉ và độ ổn định trên board (`leak_test`, giai đoạn 0-7) đạt; B) test máy tính audio_service, slideshow_service, Main Screen/Album/Pet đạt; C) đo hiệu năng trên board (`perf_test`) đạt, soak 30 phút không rò rỉ, không dứt tiếng. Chi tiết và số đo ở mục 12.1. Các điểm còn mở ghi ở mục 11 |
 
 Thứ tự gợi ý để sớm thấy kết quả: 0 → 1 → 8 → 2 → 3 → 4 → 5 → 6 → 7 → 9.
 
@@ -691,8 +707,8 @@ Thứ tự gợi ý để sớm thấy kết quả: 0 → 1 → 8 → 2 → 3 �
 
 - [ ] Tab màu thực tế của ST7735S 1.8" (đang dùng `cyberdeck_st7735` = BLACKTAB và hiển thị đúng; xác nhận lại tab nếu từng thử env khác)
 - [x] Màn 2.8": ST7789 240x320 không cảm ứng, đã chọn và chạy đúng (`TFT_BGR` + `invertDisplay(false)`, mục 3.1)
-- [ ] Nhạc có tiếp tục phát khi thoát Music Player không
-- [ ] Định dạng nhạc ưu tiên (MP3 hay WAV) và thư viện giải mã (nhạc của người dùng đang là `.m4a`/AAC, nặng hơn MP3; dự kiến đổi sang MP3 128 kbps, tên không dấu, không khoảng trắng)
+- [x] Nhạc tiếp tục phát khi thoát Music Player: bài đang phát chạy hết rồi dừng (mục 6.7)
+- [x] Định dạng nhạc ưu tiên và thư viện giải mã: MP3 + minimp3 (xem các mục đã chốt bên dưới)
 - [ ] Nguồn pin và mạch sạc (làm sau cùng)
 - [ ] Host SPI thực tế của TFT_eSPI trên bản Arduino core đang dùng (mục 1.2: mặc định FSPI; xác nhận khi làm SD)
 - [x] Ô trống cuối lưới Main Screen: đã chốt là Settings
@@ -710,11 +726,21 @@ Thứ tự gợi ý để sớm thấy kết quả: 0 → 1 → 8 → 2 → 3 �
 - [ ] Visualizer: nếu bass thô trên board thì đổi FFT lên 512 (đổi một hằng constexpr)
 - [x] Icon app Main Screen: 3 bộ icon theo 3 theme, 64x64, luôn màu trắng (không tô theo theme); chọn bộ theo khóa theme
 - [x] Time service: Wire thuần (không RTClib), I2C 0x68 ở 100 kHz, DS3231 lưu giờ địa phương, múi giờ mặc định `ICT-7` (mục 6.8)
-- [x] Khi chưa có RTC tin cậy (không chip hoặc cờ OSF): dùng giờ hệ thống, `begin()` trả `false`. Main Screen khi đó dự kiến hiện `Jan 1, 07:00` (ICT) thay vì `Jan 1, 00:00` như trước
+- [x] Khi chưa có RTC tin cậy (không chip hoặc cờ OSF): dùng giờ hệ thống, `begin()` trả `false`. Main Screen khi đó hiện giờ giả `1/1 07:00` (ICT); đã thử trên board: rút I2C thì hiện 1/1 07:00, cắm lại thì về đúng giờ
 - [ ] NTP (`TimeService::syncNtp`): đã viết, có test máy tính bằng SNTP giả, chưa thử trên board; chưa có chỗ gọi và chưa có cách cấp SSID/mật khẩu WiFi (quyết định khi làm WiFi)
 - [ ] Giao diện đặt giờ trong app (Settings hoặc Calendar): hiện chỉ đặt qua serial bằng `tools/rtc_test`
-- [ ] Thử trên board với firmware chính: kịch bản mất pin (cờ OSF) và rút dây I2C
-- [ ] Calendar: chưa có giao diện thêm/sửa sự kiện trên thiết bị (hiện sửa `/data/events.json` trực tiếp trên thẻ SD)
+- [x] Thử trên board với firmware chính: rút dây I2C (kịch bản mất pin/cờ OSF chưa thử)
+
+**Phát hiện từ chat 9 (chưa quyết định, chưa sửa):**
+- [x] Music giữ lại khoảng 1,2 MB bộ đệm khung đĩa sau khi thoát (cache thay thế được khi đổi ảnh): chấp nhận, ghi ở mục 7
+- [ ] SD "fail nhanh" khi không có thẻ: hiện mỗi lần gọi chặn khoảng 300 ms (mục 6.5). Đề xuất: nhớ thời điểm lỗi và trả lỗi ngay trong vài giây. Để backlog
+- [ ] `SdStorage::isMounted()` không phản ánh việc rút thẻ (mục 6.5): sửa hoặc đổi tên/ghi chú cho đúng
+- [ ] Main Screen: khi thiếu RTC nên hiện `--:--` thay vì giờ giả `1/1 07:00`
+- [ ] `PET_DECAY_FAST` đang là 1 (giảm khoảng 100 điểm mỗi 10 phút, để thử); đặt 0 khi dùng thật
+- [x] 3 lỗi nhỏ của `audio_service` (mục 6.7): rò khi `begin()` lỗi I2S, `seek()` tràn số, `finished()` không nguyên tử (đã sửa)
+- [ ] Pet vào chậm (khoảng 165-180 ms) và chiếm 455 KB PSRAM: có thể tối ưu (dựng sprite/nền ít hơn hoặc lười) nếu muốn
+- [ ] `loop()` có thể bị chặn tới khoảng 340 ms khi chuyển app (thoát Album, vào Pet), không làm dứt tiếng nhạc; nếu sau này cần phản hồi phím nhanh hơn thì cân nhắc tách việc dọn Album khỏi `tick()`
+- [ ] Thời gian chuyển app đo "đầu-cuối" bởi `perf_test` luôn cao hơn số `[AppManager]` khoảng 60-90 ms (chưa rõ nguyên nhân: chờ vẽ khung/lượt `loop()`), cần tìm hiểu nếu muốn con số cảm nhận thật
 
 ## 12. Nhật ký kiểm thử chat 0 (làm lại từ đầu)
 
@@ -755,9 +781,9 @@ Bản làm trước bị boot loop: `StoreProhibited` trong `TFT_eSPI::init()` (
 - [x] Trên board: điều hướng 4/6/2/8 (kể cả widget trái), phím 5 mở app, nhớ vị trí focus
 - [x] Trên board: 6 icon trắng hiện đúng (5 app + Settings). Phát hiện: hai dòng tô màu icon bằng `Themes::current().icon` làm icon chìm vào nền nên đã bỏ; icon luôn trắng
 - [x] Đồng hồ: chạy từ 1/1 00:00 khi chưa có RTC (giờ hệ thống), hành vi dự kiến cho tới khi nối `TimeService`
-- [ ] Đổi theme (phím 3 tạm hoặc Settings): bộ icon đổi đúng theo theme, màu nút/viền focus/khung đổi đúng
-- [ ] 100 lần vào/ra app và đổi theme không rò rỉ (log `[AppManager]`)
-- Chưa có test máy tính (ASan) cho Main Screen
+- [x] Đổi theme: bộ icon, màu nút, viền focus, khung đổi đúng ở cả 3 theme (xem bằng mắt, chat 9)
+- [x] 100 lần vào/ra app và đổi theme không rò rỉ: `leak_test` 300 vòng, không rò rỉ (mục 12.1)
+- Test máy tính cho Main Screen: `tools/app_test` (mục 12.1)
 
 **Chat 2: Time service**
 - [x] Test máy tính cho `time_service` (`tools/time_test`, stub DS3231/đồng hồ/WiFi/SNTP giả): 160661 kiểm tra đạt với ASan + UBSan, đã chạy lại trên máy người dùng. Gồm: BCD, thứ trong tuần so với libc cho cả 2000-2099, chế độ 12 giờ, `begin()` (không chip, chip tốt, OSF, giờ hỏng), cache 200 ms (kể cả `millis()` quay vòng), lỗi I2C và tự phục hồi, `set()` (thanh ghi đúng, giá trị sai bị bỏ qua, ghi lỗi), `syncNtp` (chưa WiFi, thành công, timeout, cờ cũ, khôi phục từ OSF), 4 luồng đọc + 1 luồng ghi không có lần đọc rách. Chèn thử 5 lỗi cố ý vào bản sao thì cả 5 đều bị test bắt
@@ -767,14 +793,14 @@ Bản làm trước bị boot loop: `StoreProhibited` trong `TFT_eSPI::init()` (
 - Bài học: lúc đầu giờ lệch 7 tiếng vì WSL để múi giờ UTC và `sync_time.py` gửi giờ theo múi giờ của máy chạy; đã sửa script luôn gửi UTC+7
 - Bài học: test máy tính của sketch `rtc_test` bắt được lỗi trong chính sketch (mốc đo trôi `[drift]` lấy sai lúc RTC nhảy giờ); đã sửa
 
-**Chưa thử trên board:** NTP (`syncNtp`), kịch bản mất pin (cờ OSF) và rút dây I2C với firmware chính.
+**Chưa thử trên board:** NTP (`syncNtp`), kịch bản mất pin (cờ OSF) với firmware chính. (Rút dây I2C đã thử ở chat 9: mục 11.)
 
 **Chat 4: Slideshow widget**
 - [x] Build được trên board (sau khi sửa lỗi dán nhầm nội dung giữa slideshow_widget.cpp và slideshow_service.cpp)
 - [x]: Trên board: ảnh hiện đúng, phủ kín khung, cắt giữa không méo.
 - [x] Tắt/bật nguồn vẫn giữ ảnh đã chọn (/data/slideshow.txt)
 - [x] Thư mục /data không có: setPhoto trả false, app không treo
-- Chưa có test trên máy tính cho SlideshowService
+- [x] Test máy tính cho SlideshowService: `tools/slideshow_test` (mục 12.1)
 
 **Chat 3: Image service + Album**
 - [x] Test máy tính cho `image_resize` (ASan + UBSan, 32 kiểm tra đạt)
@@ -791,16 +817,86 @@ Bản làm trước bị boot loop: `StoreProhibited` trong `TFT_eSPI::init()` (
 - [x] Phát MP3 từ SD, pause/resume, tua, tự chuyển bài khi app mở, rời app thì bài chạy hết rồi dừng
 - [x] Loa rè ở âm lượng cao: do quá tải; đã giới hạn mức hiển thị 100 = mức nội bộ 80
 - [x] Ảnh đĩa xoay: bản xoay trực tiếp bằng LVGL hơi nặng; đã chuyển sang dựng sẵn khung xoay
+- [x] Test máy tính cho `audio_service`: `tools/audio_test` (mục 12.1)
 
 **Chat 6: Visualizer**
 - [x] Test máy tính cho fft (ASan + UBSan, 2695 kiểm tra đạt, chạy lại trên máy người dùng)
 - [x] Test máy tính cho VisualizerApp bằng stub LVGL (1142 kiểm tra đạt ở 320x240 và 160x128, chạy lại trên máy người dùng): bố cục 3 kiểu, 7/9 qua widget gác, 4/6, ESC, callback sau onDestroy, 300 lần vào/ra không rò rỉ object, 4000 phím ngẫu nhiên. Không kiểm tra được vẽ thật và tốc độ
 - [x] Trên board: build và chạy ổn
-- [ ] 100-300 lần vào/ra app không rò rỉ (log [AppManager])
-- [ ] Đo FPS thực tế từng kiểu (đặc biệt waveform), chỉnh kFrameMs/kDbFloor/kDbRange/kTiltDb nếu cần
+- [x] 100-300 lần vào/ra app không rò rỉ: `leak_test` (mục 12.1)
+- [ ] Đo FPS thực tế từng kiểu (đặc biệt waveform), chỉnh kFrameMs/kDbFloor/kDbRange/kTiltDb nếu cần (xem bằng mắt thì mượt, chưa đo bằng số)
 
-**Chat 7: Calendar**
-- [x] Build được (chưa chạy thử trên board)
-- [ ] Test máy tính cho CalendarLogic (ASan): daysInMonth/isLeap, weekdayOf so với libc, addDays/shiftMonth ở biên năm 2000/2099, parseEvents (JSON đúng, thiếu field, ngày sai, UTF-8, mảng rỗng, vượt kMaxEvents)
-- [ ] Trên board: đọc `/data/events.json`, chấm đánh dấu đúng ngày, nhiều sự kiện/ngày bấm 5 xem lần lượt, phím 3 về hôm nay, không có file/SD vẫn chạy được
-- [ ] 100 lần vào/ra app không rò rỉ (log [AppManager])
+### 12.1 Chat 9: Tối ưu + kiểm thử
+
+Phạm vi: Calendar không thuộc chat này. Không sửa `main.cpp` và không sửa code firmware; mọi sketch/test nằm trong `tools/`. Người dùng không thử kịch bản thẻ SD trống/thiếu thư mục (chỉ mình dùng, đã ghi chú thiết lập thẻ).
+
+**A. Kiểm thử rò rỉ và độ ổn định trên board (`tools/leak_test`, env `leak_test`, giai đoạn 0-7): đạt.**
+- Phương pháp: đo mốc ban đầu, vài vòng khởi động nguội, rồi đo độ trôi bộ nhớ (hồi quy bình phương tối thiểu), ngưỡng 512 B, theo dõi số task, phát hiện dứt tiếng bằng `positionMs()` so với đồng hồ thật (cửa sổ 500 ms, tỉ lệ < 0,85 là dứt).
+- Các giai đoạn: vào/ra từng app nhiều vòng (0, 2-4), nhạc phát nền (5), rút/cắm thẻ SD giữa chừng (6), đổi ảnh widget khi vào Music (7). Tất cả đạt: không rò rỉ, không treo; thẻ SD tự đọc lại sau khi cắm lại; nhạc về `STOPPED` khi rút thẻ giữa lúc phát; nhạc nền không dứt tiếng khi chuyển app.
+- Thử tay trên board: theme đúng ở cả 3 theme; Visualizer, đĩa xoay và mèo mượt; rút I2C thì giờ hiện `1/1 07:00`, cắm lại thì đúng giờ; rút thẻ SD thì Main hiện thông báo đặt sẵn, cắm lại thì widget hiện đúng ảnh đã chọn.
+
+**B. Test máy tính (g++ + stub; ASan/UBSan, TSan chạy bằng `setarch $(uname -m) -R`; kiểm tra đột biến): đạt, đã chạy lại trên máy người dùng.**
+
+| Bộ test | Đối tượng | Kết quả |
+|---|---|---|
+| `tools/audio_test` | `audio_service` | 4 cấu hình, 2640 kiểm tra, 0 hỏng |
+| `tools/slideshow_test` | `slideshow_service` | 4 cấu hình, 123587 kiểm tra, 0 hỏng |
+| `tools/app_test` (`sh run.sh quick`) | Main Screen, Album, Pet (LVGL 8.3.11 thật) | 4600 kiểm tra, 0 lỗi; đột biến: 27/30 bị bắt, 3 tương đương (M18, M20, M28) |
+
+- `app_test`: mốc bộ nhớ ổn định qua 300 vòng (82345 B, 195 khối, 18 đối tượng, 0 task); chèn lỗi cấp phát PSRAM (chỉ qua `Psram::alloc`) ở các vị trí app0=23, app5=59, app1=21 đều không rò, không treo; fuzz phím theo mô hình tham chiếu từng bước (Main, Album, Pet) +0 B; thử `millis()` quay vòng cho Pet; có kiểm tra đua giữa `AppManager::tick` và `LvglPort::tick` khi ảnh widget đổi.
+- Lỗi do test bắt trong chính test/stub (đã sửa): lỗi stub heap (`ESP.getFreeHeap`), cache ảnh widget 71 KB bị tính nhầm là rò, `run.sh` truyền đối số rỗng làm test bỏ qua toàn bộ.
+
+**C. Đo hiệu năng trên board (`tools/perf_test`, env `perf_test`, thẻ SD có `/music/exile.mp3`, 9 ảnh trong `/images`, theme `mint`): đạt.** Ngày chạy 2026-11-18/19. `PERF_NO_TASKSTATE=1`: stack đọc theo tên task.
+
+*C1. Thời gian chuyển app.* Đo hai kiểu. "AppManager" là số `N ms` mà `AppManager` tự in (dựng/hủy trong `tick()`): đây là số đo đáng tin của việc chuyển app. "Đầu-cuối" là từ lúc gọi `goTo/goHome` đến lúc `AppManager` báo xong, đo bằng `perf_test` (độ phân giải khoảng 5 ms), luôn cao hơn khoảng 60-90 ms (chưa rõ nguyên nhân, mục 11). Mỗi app 8 lần vào/ra (2 lần đầu là "nguội", không tính vào trung bình).
+
+| App | Vào, AppManager (ms) | Ra Main, AppManager (ms) | Vào, đầu-cuối (ms, không nhạc / có nhạc) | Ra, đầu-cuối (ms) |
+|---|---|---|---|---|
+| Visualizer | 18-19 | 17 | 78 / 87 | 90 / 95-151 |
+| Settings | 17-19 | 16-18 | 85 / 88 | 89 / 93 |
+| Album | 50-54 | 18-63 (đôi khi 120-270) | 141 / 148 | 134 / 124 |
+| Music | 62-72 | 16-18 | 136 / 144 | 89 / 94 |
+| Pet | 164-183 | 17-19 | 252 / 270 | 35 / 60 |
+
+- Không có lần chuyển nào thất bại (`fail=0`, 8 lần mỗi app, cả hai chế độ). Lần "nguội" gần như không chậm hơn (trừ Music lần đầu, hơn khoảng 17 ms).
+- Số lần vào/ra thu thập từ log chạy dài: Pet 59 lần trung bình 173 ms (171-222); Music 57 lần trung bình 66 ms (63-78); Album 63 lần trung bình 53 ms (52-59); Settings 62 lần 19 ms; Visualizer 53 lần 19 ms.
+- `AppManager::tick()` chặn `loop()` lâu nhất: Pet vào khoảng 250-270 ms (tính cả đầu-cuối), Album ra tới khoảng 130-270 ms. Khoảng cách tối đa giữa hai vòng `loop()` đo được: 275 ms (hai phần đo ngắn), 343 ms (30 phút chạy dài).
+
+*C2. Bộ nhớ mỗi app khi đang mở* (so với đang ở Main; PSRAM và heap nội bộ). Số liệu từ `perf_test` (byte) và đối chiếu với dòng `[AppManager]` (KB).
+
+| App | PSRAM chiếm (B) | Heap nội bộ chiếm (B) | Task thêm | Sau khi thoát (hụt tối đa, B) |
+|---|---|---|---|---|
+| Pet | 464,816 | 500 | 0 | -24 |
+| Album | 58,028 | 10,392 | +1 (`album`, tạm) | -60 |
+| Visualizer | 7,380 | 2,948 | 0 | -96 |
+| Music (khi đã có cache đĩa) | 2,096 | 968 | 0 | -24 |
+| Settings | ~0 | 108 | 0 | -72 |
+
+- Mọi app quay về mốc cũ trong sai số, tối đa -96 B (dưới ngưỡng 512 B). Lần vào Music đầu tiên: PSRAM trống giảm 1,375,804 B và heap giảm khoảng 47 KB, rồi giữ nguyên (cache 45 khung đĩa ~1,2 MB + ring PCM 128 KB + hai task audio; mục 7). Đây là chỗ duy nhất bộ nhớ "không về mốc cũ" và là chủ đích.
+- Mốc: lúc khởi động (trước khi vào Music) heap trống khoảng 306-314 KB, PSRAM trống khoảng 8,247,000 B; sau khi Music đã dựng cache: heap khoảng 261-267 KB, PSRAM khoảng 6,871,000 B (khối liền lớn nhất 6,815,732 B, không phân mảnh), heap nội bộ khối liền lớn nhất 237,556 B.
+- Đỉnh dùng bộ nhớ từ lúc khởi động (nhạc đang phát, đã vào mọi app): PSRAM trống thấp nhất 6,399,863 B (tức dùng tối đa khoảng 1,85 MB trong 8 MB), heap nội bộ trống thấp nhất khoảng 247 KB (dùng tối đa khoảng 67 KB). Còn rất nhiều dư địa.
+- Số task: 7 lúc khởi động; 9 sau khi dùng Music (thêm `audio_dec`, `audio_out`); Album thêm 1 task tạm khi mở.
+
+*C3. Stack còn trống tối thiểu từng task (byte; càng nhỏ càng sát).*
+
+| Task | Còn trống tối thiểu (B) | Ghi chú |
+|---|---|---|
+| `loopTask` | 5068 | stack mặc định Arduino 8 KB, đã dùng khoảng 3,1 KB |
+| `lvgl` | 8980 | stack 12 KB, đã dùng khoảng 3,3 KB |
+| `audio_dec` | 15060 (31844 lúc chưa phát) | stack 32 KB, minimp3 dùng khoảng 17 KB |
+| `audio_out` | 3232 | |
+| `album` | 5468 | task tạm, đo lúc đang mở |
+| `esp_timer` | 3872 | task hệ thống |
+| `ipc0` / `ipc1` | 324 / 208 | task hệ thống ESP-IDF, nhỏ nhưng ổn định; không thuộc code của dự án |
+
+Các task tạm `disc_cover` và `slideshow` chưa được đo (chỉ tồn tại ngắn, không bắt được lúc đang sống). Chưa thấy task nào sát giới hạn; chưa có dấu hiệu tràn stack.
+
+*C4. Chạy dài (soak) 30 phút có nhạc phát lặp, 464 thao tác (vào app 268, thoát nhanh 60, đổi theme 76, đứng yên 60), 30 mẫu mỗi phút ở Main: đạt cả 5 tiêu chí.*
+- PSRAM trôi +56 B (2,1 B/phút), heap nội bộ -44 B (13,5 B/phút), khối PSRAM liền lớn nhất không đổi, số task không đổi (9).
+- Âm thanh: 3517 cửa sổ kiểm tra, 0 lần dứt tiếng, tỉ lệ thấp nhất 0,99, phát lại 6 lần (hết bài tự phát lại), 0 lỗi `play`.
+- Khoảng cách tối đa giữa hai vòng `loop()`: 343 ms (do thoát Album hoặc vào Pet); không gây dứt tiếng.
+- Stack `loopTask` thấp nhất trong cả lần chạy: 5036 B.
+
+**Phát hiện (đã ghi ở mục 11):** 3 lỗi nhỏ của `audio_service` (đã sửa); `isMounted()` không đáng tin; mỗi lần gọi SD khi không có thẻ chặn khoảng 300 ms; Main Screen hiện giờ giả `1/1 07:00` khi thiếu RTC; `PET_DECAY_FAST = 1`; Pet vào chậm và nặng PSRAM; `loop()` bị chặn tới khoảng 340 ms khi chuyển app.
+
+**Giới hạn của phép đo:** không đo FPS và tải CPU; độ phân giải thời gian chuyển app khoảng 5 ms; Calendar chưa được đo; phần đo có nhạc dùng một bài MP3 (`/music/exile.mp3`); các phép đo "đầu-cuối" có độ lệch cố định chưa giải thích (mục 11).

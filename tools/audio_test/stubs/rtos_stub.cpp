@@ -28,6 +28,8 @@ std::atomic<long> psramAllocs(0);
 std::atomic<int> psramFailNth(0);
 std::atomic<int> i2sInstallFail(0);
 std::atomic<int> i2sInstallCalls(0);
+std::atomic<int> i2sPinFail(0);
+std::atomic<int> i2sUninstallCalls(0);
 std::atomic<int> i2sZeroCalls(0);
 i2s_config_t i2sCfg;
 i2s_pin_config_t i2sPins;
@@ -225,7 +227,17 @@ esp_err_t i2s_driver_install(i2s_port_t, const i2s_config_t* c, int, void*) {
   g_curRate = c->sample_rate;
   return ESP_OK;
 }
-esp_err_t i2s_set_pin(i2s_port_t, const i2s_pin_config_t* p) { hooks::i2sPins = *p; return ESP_OK; }
+esp_err_t i2s_driver_uninstall(i2s_port_t) {
+  hooks::i2sUninstallCalls++;
+  if (!g_i2sInstalled) return ESP_FAIL;
+  g_i2sInstalled = false;
+  return ESP_OK;
+}
+esp_err_t i2s_set_pin(i2s_port_t, const i2s_pin_config_t* p) {
+  if (hooks::i2sPinFail.load()) return ESP_FAIL;
+  hooks::i2sPins = *p;
+  return ESP_OK;
+}
 esp_err_t i2s_zero_dma_buffer(i2s_port_t) { hooks::i2sZeroCalls++; return ESP_OK; }
 esp_err_t i2s_set_clk(i2s_port_t, uint32_t rate, i2s_bits_per_sample_t, i2s_channel_t) {
   std::lock_guard<std::mutex> g(g_capMtx);

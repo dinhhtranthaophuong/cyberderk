@@ -20,6 +20,7 @@ typedef struct {
 } i2s_config_t;
 typedef struct { int mck_io_num, bck_io_num, ws_io_num, data_out_num, data_in_num; } i2s_pin_config_t;
 esp_err_t i2s_driver_install(i2s_port_t, const i2s_config_t*, int, void*);
+esp_err_t i2s_driver_uninstall(i2s_port_t);
 esp_err_t i2s_set_pin(i2s_port_t, const i2s_pin_config_t*);
 esp_err_t i2s_zero_dma_buffer(i2s_port_t);
 esp_err_t i2s_set_clk(i2s_port_t, uint32_t rate, i2s_bits_per_sample_t, i2s_channel_t);

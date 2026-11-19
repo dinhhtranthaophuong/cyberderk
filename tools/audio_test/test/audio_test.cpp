@@ -740,11 +740,50 @@ static int scenarioBeginI2sFail() {
   for (int i = 0; i < 5; i++) CHECK(!AudioService::begin());
   long after6 = hooks::psramOutstanding;
   printf("  PSRAM giu sau 1 lan loi: %ld B, sau 6 lan: %ld B\n", after1, after6);
-  finding("F-begin-i2s-ro-ri", after6 > 0, "begin() that bai o i2s_driver_install khong tra buffer/khoa: moi lan goi lai ro %ld B PSRAM (6 lan = %ld B)",
-          (after6 - after1) / 5, after6);
+  CHECKF(after1 == 0 && after6 == 0, "begin() that bai o i2s_driver_install con giu PSRAM: %ld B sau 1 lan, %ld B sau 6 lan", after1, after6);
   CHECK(hooks::tasks().empty());
   hooks::i2sInstallFail = 0;
   CHECK(AudioService::begin());
+  return 0;
+}
+// begin() that bai o i2s_set_pin (driver da cai): phai go driver va tra bo nho, goi lai phai thanh cong.
+static int scenarioBeginPinFail() {
+  section("begin() khi i2s_set_pin loi (driver da cai)");
+  long base = hooks::psramOutstanding;
+  hooks::i2sPinFail = 1;
+  int un0 = hooks::i2sUninstallCalls;
+  for (int i = 0; i < 6; i++) CHECK(!AudioService::begin());
+  CHECKF(hooks::psramOutstanding == base, "set_pin loi: giu PSRAM %ld B (mong doi 0)", hooks::psramOutstanding - base);
+  CHECKF(hooks::i2sUninstallCalls - un0 == 6, "set_pin loi: go driver %d lan (mong doi 6)", hooks::i2sUninstallCalls - un0);
+  CHECK(hooks::tasks().empty());
+  hooks::i2sPinFail = 0;
+  CHECK(AudioService::begin());                  // driver da duoc go nen cai lai duoc
+  CHECK(hooks::tasks().size() == 2);
+  return 0;
+}
+// seek(): gia tri cuc doan khong gay tran so, bam lien tuc khong gay tran cong don.
+// finished(): hai luong doc dong thoi, moi lan het bai chi duoc bao dung mot lan, khong mat, khong nhan doi.
+static int scenarioFinishedRace() {
+  section("finished(): hai luong doc dong thoi, N bai -> dung N lan bao");
+  CHECK(AudioService::begin());
+  quiesce();
+  AudioService::setVolume(100);
+  std::atomic<int> total(0);
+  std::atomic<bool> stopFlag(false);
+  auto reader = [&] { while (!stopFlag.load()) { if (AudioService::finished()) ++total; usleep(20); } };
+  std::thread t1(reader), t2(reader);
+  const int N = 12;
+  int got = 0;
+  for (int i = 0; i < N; i++) {
+    AudioService::play(sdName("d_8k_mono.mp3").c_str());
+    bool ok = waitFor([&] { return total.load() >= i + 1; }, 20000);
+    CHECKF(ok, "bai %d khong thay bao het bai", i);
+    got = total.load();
+  }
+  usleep(300000);
+  stopFlag = true; t1.join(); t2.join();
+  CHECKF(total.load() == N, "bao het bai %d lan, mong doi %d", total.load(), N);
+  (void)got;
   return 0;
 }
 static int scenarioSeekExtreme() {
@@ -759,6 +798,8 @@ static int scenarioSeekExtreme() {
   usleep(200000);
   AudioService::seek(2147483);
   AudioService::seek(-2147483);
+  for (int i = 0; i < 2000; i++) AudioService::seek(INT_MAX);   // cong don lien tuc phai bao hoa, khong tran
+  for (int i = 0; i < 2000; i++) AudioService::seek(INT_MIN);
   usleep(200000);
   CHECK(AudioService::state() == AudioState::PLAYING || AudioService::state() == AudioState::STOPPED);
   AudioService::stop();
@@ -806,6 +847,8 @@ int main(int argc, char** argv) {
   else if (sc == "begin_psram_fail") rc = scenarioBeginPsramFail();
   else if (sc == "begin_i2s_fail") rc = scenarioBeginI2sFail();
   else if (sc == "seek_extreme") rc = scenarioSeekExtreme();
+  else if (sc == "begin_pin_fail") rc = scenarioBeginPinFail();
+  else if (sc == "finished_race") rc = scenarioFinishedRace();
   else if (sc == "main") rc = runMain();
   else { fprintf(stderr, "kich ban la: %s\n", sc.c_str()); rc = 64; }
   noViolations(sc.c_str());
