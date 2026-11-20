@@ -655,7 +655,7 @@ const lv_img_dsc_t* image();          // nullptr nếu không có; con trỏ s�
 | Music | Audio, SdStorage, ImageService (qua DiscCover), đọc /data/slideshow.txt | 2/8 chọn bài; 5 phát bài đang chọn, hoặc Play/Pause nếu là bài đang phát; 4/6 tua ∓10 giây; 7/9 bài trước/sau; 3 (KEY_OPTION) tăng âm lượng; 1 về Home | Trái là đĩa quay (ảnh mặt đĩa dùng chung ảnh đã chọn cho widget Main Screen, chọn ở Album bằng phím 3), thanh tiến độ, thời gian, nút điều khiển; phải là tên bài (cuộn ngang), số bài, âm lượng (biểu tượng loa + thanh) và playlist quét /music/*.mp3 (tối đa 64 bài). Âm lượng hiển thị 10..100, bước 10; mức hiển thị 100 ứng với mức 80 của AudioService::setVolume (mức cao hơn bị rè trên loa này). Mặc định 50. Ảnh đĩa: task Core 0 giải mã, cắt vuông giữa, dựng sẵn 45 khung xoay cách nhau 8° vào PSRAM (khoảng 1,2 MB với đĩa 116 px), cắt tròn, phần góc tô màu nền theme; lúc phát chỉ đổi khung mỗi 100 ms. Chưa có ảnh hoặc lỗi thì đĩa hiện hai cung quay. Theme có ảnh nền (bgImage) sẽ lộ phần góc. Tự chuyển bài khi hết bài chỉ khi app đang mở; rời app thì bài chạy hết rồi dừng. **Bộ nhớ còn giữ sau khi thoát (chấp nhận, có chủ đích):** bộ đệm 45 khung đĩa (khoảng 1,2 MB PSRAM) được giữ lại như cache để lần vào sau không dựng lại; nó được thay khi đổi ảnh widget. Lần vào Music đầu tiên làm PSRAM trống giảm khoảng 1,38 MB và heap nội bộ giảm khoảng 47 KB (gồm cache đĩa, ring PCM 128 KB, hai task audio), sau đó không tăng thêm (đo 8 lần vào/ra: lệch tối đa vài chục byte). Khi đã có cache, vào/ra Music chiếm thêm khoảng 2 KB PSRAM + 1 KB heap, mất 62-72 ms (lần đầu hơi lâu hơn, khoảng 17 ms). Đây là phần PSRAM chiếm thường trực lớn nhất của firmware |
 | Visualizer | Audio (`readPcmTap`) | 7/9 đổi kiểu hiệu ứng, 4/6 chỉnh dạng (số thanh; waveform: độ phóng biên độ), 1 thoát | Phím 7/9 không tới widget dưới dạng LV_EVENT_KEY (LVGL 8.3 chỉ dùng chúng để dời focus), nên app đặt hai widget "gác" 1x1 trong suốt hai bên widget chính trong group: focus bị dời sang widget gác nghĩa là người dùng bấm 7 hoặc 9, app trả focus về widget chính ngay trong callback. Kiểu và mức 4/6 nhớ ở biến tĩnh. Các hằng số chỉnh độ nhạy/độ mượt/fps (kFrameMs, kDbFloor, kDbRange, kTiltDb, kAttack, kFall) nằm đầu visualizer_app.cpp. Màu thanh lấy từ accent, vạch đỉnh từ focus; theme quá tối trên nền đen thì rơi về text, rồi trắng. Chi phí đo trên board: vào/ra 17-20 ms, chiếm khoảng 7 KB PSRAM + 3 KB heap khi mở |
 | Calendar | Time, SdStorage (`/data/events.json`) | 2/8/4/6 di chuyển ngày, 7/9 đổi tháng, 5 xem sự kiện kế tiếp trong ngày, 3 (KEY_OPTION) về hôm nay | Tiêu đề tháng, hàng `S M T W T F S`, lưới ngày 7 cột x 6 hàng. Đọc `/data/events.json` lúc `onCreate` (Core 1, không qua task nền): `{"events":[{"date":"YYYY-MM-DD","title":"..."}]}`, bỏ qua mục sai ngày/thiếu title, tối đa 256 sự kiện, title tối đa 48 ký tự ASCII (ký tự ngoài ASCII hiện `?`). Không có file hoặc chưa mount SD thì lịch vẫn chạy, không có chấm đánh dấu. Ngày chọn: nền `panel` + viền `focus`; hôm nay (chưa chọn): viền `accent`; ngày có sự kiện: chấm nhỏ dưới số, màu `accent` (hoặc `textOnPanel` nếu đang chọn). Không có giao diện thêm sự kiện trên thiết bị, sửa file trực tiếp trên thẻ SD |
-| Album | Image, SdStorage | 5 xem toàn màn hình, 1 quay lại, 3 = đặt ảnh làm ảnh widget Main Screen | Lưới 4x4 (3x3 khi UI_COMPACT), tối đa 256 ảnh trong /images. Thumbnail giải mã ở task nền Core 0, kết quả về UI qua queue và onTick. 2/4/6/8 di chuyển quay vòng, 5 xem toàn màn hình (4/6 đổi ảnh, 5 hoặc 1 đóng), 1 ở lưới về Home. Phím 3 (KEY_OPTION) gọi SlideshowService::setPhoto() cho ảnh đang xem, hoặc ô đang chọn khi ở lưới. Thông báo "Da dat lam anh nen" hoặc "Khong luu duoc" hiện 1,5 giây, tự ẩn bằng millis() trong onTick. Màn xem ảnh có gợi ý mờ "3: dat nen" ở góc trên phải. Chi phí đo trên board (9 ảnh): vào khoảng 50-59 ms, chiếm khoảng 58 KB PSRAM + 10 KB heap + 1 task worker tạm. **Thoát Album chậm hơn các app khác**: thường 30-70 ms, thỉnh thoảng 120-270 ms (phải dừng worker và dọn thumbnail), làm `loop()` bị chặn tương ứng |
+| Album | Image, SdStorage | 5 xem toàn màn hình, 1 quay lại, 3 = đặt ảnh làm ảnh widget Main Screen | Lưới 4x4 (3x3 khi UI_COMPACT), tối đa 256 ảnh trong /images. Thumbnail giải mã ở task nền Core 0, kết quả về UI qua queue và onTick. 2/4/6/8 di chuyển quay vòng, 5 xem toàn màn hình (4/6 đổi ảnh, 5 hoặc 1 đóng), 1 ở lưới về Home. Phím 3 (KEY_OPTION) gọi SlideshowService::setPhoto() cho ảnh đang xem, hoặc ô đang chọn khi ở lưới. Thông báo "Set as widget photo" hoặc "Save failed" hiện 1,5 giây, tự ẩn bằng millis() trong onTick. Màn xem ảnh có gợi ý mờ "3: Set as widget photo" ở góc trên phải. Chi phí đo trên board (9 ảnh): vào khoảng 50-59 ms, chiếm khoảng 58 KB PSRAM + 10 KB heap + 1 task worker tạm. **Thoát Album chậm hơn các app khác**: thường 30-70 ms, thỉnh thoảng 120-270 ms (phải dừng worker và dọn thumbnail), làm `loop()` bị chặn tương ứng, onDestroy() dừng worker và chờ tối đa 3 giây; nếu worker chưa thoát kịp thì giữ lại bộ nhớ (chấp nhận rò rỉ) để không crash. Ảnh chỉ nhận JPG baseline, ImageService không xoay theo EXIF (mục 6.6) |
 
 ### 7.1 Quy ước giao diện
 
@@ -674,7 +674,7 @@ const lv_img_dsc_t* image();          // nullptr nếu không có; con trỏ s�
 | 0 | Core + hạ tầng: `platformio.ini`, `config/`, `lvgl_port`, `input_service`, `app_manager`, `app_registry`, `theme`, `settings_store`, app Settings, `psram` | - | Bước 1-5 xong và chạy đúng trên board (TFT/LVGL, phím serial, AppManager, bàn phím 3x3, màn ST7789 + theme + bảng đăng ký + Settings). Bước 6: `sd_storage` xong và chạy đúng trên board. Phần cứng I2S (Chat 5) và DS3231 (Chat 2) đã làm sau đó |
 | 1 | Main Screen (khung) + chuyển app, app stub | 0 | Xong và chạy đúng trên board: widget trái (đồng hồ + ảnh qua `SlideshowService`), focus/điều hướng hai nửa, phím 5 mở Album, icon app 3 bộ theo theme (64x64, trắng). Màu nút, viền focus, khung ảnh lấy từ theme. Đã có test máy tính với LVGL thật (`tools/app_test`, chat 9). Đồng hồ đã chuyển sang `TimeService::now()` (Chat 2), hiện đúng giờ thật trên board. |
 | 2 | Time service | 0 | Xong và chạy đúng trên board: `TimeService` (Wire thuần, giờ địa phương ICT-7, cờ OSF, cache 200 ms, mutex), `tools/rtc_test` + `sync_time.py`, Main Screen dùng `TimeService::now()`. Test máy tính 160661 kiểm tra (ASan + UBSan). `syncNtp` đã viết, chưa thử trên board, chưa có chỗ gọi |
-| 3 | Image service + Album | 0 | Xong và chạy đúng trên board: giải mã JPG, lưới thumbnail, xem toàn màn hình. Test máy tính cho phần resize (32 kiểm tra) và cho Album (`tools/app_test`). Phím 3 đặt ảnh widget đã test trên board (mục 12) |
+| 3 | Image service + Album | 0 | Xong và chạy đúng trên board: giải mã JPG, lưới thumbnail, xem toàn màn hình. Test máy tính cho phần resize (32 kiểm tra) và cho Album (`tools/app_test`). Phím 3 đặt ảnh widget đã test trên board (mục 12). Chat đóng ngày 20/11/2026. leak_test (chat 9) không thấy rò rỉ khi vào/ra Album nhiều vòng |
 | 4 | Slideshow widget (Core 0) | 1, 3 | Xong và chạy đúng trên board. Giải mã 1 ảnh ở Core 0, cache PSRAM, cắt giữa kiểu cover, lưu đường dẫn vào /data/slideshow.txt. Không có chu kỳ chuyển ảnh (người dùng chọn từ Album). Phím chọn ảnh ở Album (phím 3) đã thêm. Test máy tính `tools/slideshow_test` (chat 9) |
 | 5 | Audio service + Music Player | 0 | Xong và chạy đúng trên board: AudioService (minimp3 + I2S), Music Player, ảnh đĩa xoay, âm lượng. Test máy tính `tools/audio_test` (chat 9). Chân I2S đã có trong `config/pins.hpp`; `audio_service.cpp`. |
 | 6 | Visualizer | 5 | Xong và chạy ổn trên board: fft + VisualizerApp 3 kiểu, 7/9 đổi kiểu, 4/6 chỉnh dạng. Test máy tính đạt (fft 2695 kiểm tra, VisualizerApp 1142 kiểm tra bằng stub LVGL). Đã kiểm tra rò rỉ qua nhiều lần vào/ra trên board (chat 9). Chưa đo FPS bằng số (xem bằng mắt thấy mượt) |
@@ -724,12 +724,14 @@ Thứ tự gợi ý để sớm thấy kết quả: 0 → 1 → 8 → 2 → 3 �
 - [x] Theme có ảnh nền (bgImage) thì ảnh đĩa Music lộ phần góc (đang bake màu bg của theme)
 - [x] Visualizer: không hiện tên bài (không cần API tên bài trong AudioService), 3 kiểu (thanh đối xứng giữa, waveform, thanh đối xứng hai viền), nền đen, FFT 256 ở Core 1, thoát app thì hủy, nhạc chạy nền
 - [ ] Visualizer: nếu bass thô trên board thì đổi FFT lên 512 (đổi một hằng constexpr)
-- [x] Icon app Main Screen: 3 bộ icon theo 3 theme, 64x64, luôn màu trắng (không tô theo theme); chọn bộ theo khóa theme
+- [x] Icon app Main Screen: 4 bộ icon theo 4 theme, 64x64, luôn màu trắng (không tô theo theme); chọn bộ theo khóa theme
 - [x] Time service: Wire thuần (không RTClib), I2C 0x68 ở 100 kHz, DS3231 lưu giờ địa phương, múi giờ mặc định `ICT-7` (mục 6.8)
 - [x] Khi chưa có RTC tin cậy (không chip hoặc cờ OSF): dùng giờ hệ thống, `begin()` trả `false`. Main Screen khi đó hiện giờ giả `1/1 07:00` (ICT); đã thử trên board: rút I2C thì hiện 1/1 07:00, cắm lại thì về đúng giờ
 - [ ] NTP (`TimeService::syncNtp`): đã viết, có test máy tính bằng SNTP giả, chưa thử trên board; chưa có chỗ gọi và chưa có cách cấp SSID/mật khẩu WiFi (quyết định khi làm WiFi)
 - [ ] Giao diện đặt giờ trong app (Settings hoặc Calendar): hiện chỉ đặt qua serial bằng `tools/rtc_test`
 - [x] Thử trên board với firmware chính: rút dây I2C (kịch bản mất pin/cờ OSF chưa thử)
+- [ ] Album/ImageService: không nhận JPG progressive, bỏ qua EXIF orientation (ảnh phải chuẩn bị sẵn trên PC, mục 6.6). Chỉ xử lý nếu có ảnh thật bị xoay sai hoặc không mở được
+- [ ] Album: thông báo "Khong luu duoc" cũng hiện khi ghi SD lỗi nhưng ảnh widget vẫn đổi trong RAM (mục 6.13, mất sau khi khởi động lại). Có thể đổi chuỗi thành "Chua luu duoc" cho đúng nghĩa
 
 **Phát hiện từ chat 9 (chưa quyết định, chưa sửa):**
 - [x] Music giữ lại khoảng 1,2 MB bộ đệm khung đĩa sau khi thoát (cache thay thế được khi đổi ảnh): chấp nhận, ghi ở mục 7
@@ -797,13 +799,6 @@ Bản làm trước bị boot loop: `StoreProhibited` trong `TFT_eSPI::init()` (
 
 **Chưa thử trên board:** NTP (`syncNtp`), kịch bản mất pin (cờ OSF) với firmware chính. (Rút dây I2C đã thử ở chat 9: mục 11.)
 
-**Chat 4: Slideshow widget**
-- [x] Build được trên board (sau khi sửa lỗi dán nhầm nội dung giữa slideshow_widget.cpp và slideshow_service.cpp)
-- [x]: Trên board: ảnh hiện đúng, phủ kín khung, cắt giữa không méo.
-- [x] Tắt/bật nguồn vẫn giữ ảnh đã chọn (/data/slideshow.txt)
-- [x] Thư mục /data không có: setPhoto trả false, app không treo
-- [x] Test máy tính cho SlideshowService: `tools/slideshow_test` (mục 12.1)
-
 **Chat 3: Image service + Album**
 - [x] Test máy tính cho `image_resize` (ASan + UBSan, 32 kiểm tra đạt)
 - [x] Trên board: giải mã JPG, lưới thumbnail, xem toàn màn hình chạy ổn
@@ -812,6 +807,15 @@ Bản làm trước bị boot loop: `StoreProhibited` trong `TFT_eSPI::init()` (
 - [x] Trên board: ở lưới bấm 3 trên ô khác, ảnh widget đổi theo
 - [x] Trên board: thoát Album ngay khi thông báo còn hiện, không crash
 - [x] Rút thẻ SD rồi bấm 3: hiện "Khong luu duoc"
+- [x] Test máy tính cho Album: `tools/app_test` (LVGL thật, mục 12.1)
+- [x] Chat 9: vào/ra Album 8 lần không rò rỉ (hụt tối đa 60 B); vào khoảng 50-59 ms, thoát thường 30-70 ms, thỉnh thoảng 120-270 ms (mục 12.1)
+
+**Chat 4: Slideshow widget**
+- [x] Build được trên board (sau khi sửa lỗi dán nhầm nội dung giữa slideshow_widget.cpp và slideshow_service.cpp)
+- [x]: Trên board: ảnh hiện đúng, phủ kín khung, cắt giữa không méo.
+- [x] Tắt/bật nguồn vẫn giữ ảnh đã chọn (/data/slideshow.txt)
+- [x] Thư mục /data không có: setPhoto trả false, app không treo
+- [x] Test máy tính cho SlideshowService: `tools/slideshow_test` (mục 12.1)
 
 **Chat 5: Audio service + Music Player**
 
