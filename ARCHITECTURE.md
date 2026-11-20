@@ -787,7 +787,7 @@ Bản làm trước bị boot loop: `StoreProhibited` trong `TFT_eSPI::init()` (
 - [x] Đồng hồ: lúc đầu dùng giờ hệ thống (chạy từ 1/1 00:00 khi chưa có RTC); từ Chat 2 dùng `TimeService::now()` nên hiện đúng giờ thật. Khi thiếu RTC tin cậy (không chip hoặc cờ OSF) hiện giờ giả `1/1 07:00` (ICT), giữ nguyên theo quyết định ở chat 9 (mục 11)
 - [x] Đổi theme: bộ icon, màu nút, viền focus, khung đổi đúng ở cả 4 theme (xem bằng mắt, chat 9)
 - [x] 100 lần vào/ra app và đổi theme không rò rỉ: `leak_test` 300 vòng, không rò rỉ (mục 12.1)
-- Test máy tính cho Main Screen: `tools/app_test` (mục 12.1)
+- [x] Test máy tính cho Main Screen: `tools/app_test` (mục 12.1)
 
 **Chat 2: Time service**
 - [x] Test máy tính cho `time_service` (`tools/time_test`, stub DS3231/đồng hồ/WiFi/SNTP giả): 160661 kiểm tra đạt với ASan + UBSan, đã chạy lại trên máy người dùng. Gồm: BCD, thứ trong tuần so với libc cho cả 2000-2099, chế độ 12 giờ, `begin()` (không chip, chip tốt, OSF, giờ hỏng), cache 200 ms (kể cả `millis()` quay vòng), lỗi I2C và tự phục hồi, `set()` (thanh ghi đúng, giá trị sai bị bỏ qua, ghi lỗi), `syncNtp` (chưa WiFi, thành công, timeout, cờ cũ, khôi phục từ OSF), 4 luồng đọc + 1 luồng ghi không có lần đọc rách. Chèn thử 5 lỗi cố ý vào bản sao thì cả 5 đều bị test bắt
