@@ -35,7 +35,7 @@ const AppId* launcherSlots();
 const AppInfo& info(AppId id);
 
 
-constexpr uint8_t kThemeCount = 3;  // = Icons::kThemeCount
+constexpr uint8_t kThemeCount = 4;  // = Icons::kThemeCount
 
 // Icon (lv_img_dsc_t*) của app theo theme. Theme ngoài khoảng -> theme 0.
 // nullptr nếu app không có icon.

@@ -26,12 +26,13 @@ namespace {
 
 constexpr size_t kSlots = AppRegistry::kLauncherSlots;
 
-// Chọn bộ icon theo khóa theme: night = dark blue (0), mint (1), pink (2).
+// Chọn bộ icon theo khóa theme: night = dark blue (0), mint (1), pink (2), theme Giáng sinh (3).
 // Theme chưa có bộ icon riêng thì dùng bộ 0.
 uint8_t iconSet() {
   const char* k = Themes::current().key;
   if (std::strcmp(k, "mint") == 0) return 1;
   if (std::strcmp(k, "pink") == 0) return 2;
+  if (std::strcmp(k, "christmas gift") == 0 || std::strcmp(k, "christmas") == 0 || std::strcmp(k, "xmas") == 0) return 3;  // đổi thành khóa thật trong theme.cpp
   return 0;  // "night" và các theme khác
 }
 
