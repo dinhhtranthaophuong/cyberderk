@@ -554,7 +554,7 @@ const AppId* launcherSlots();       // các app đang chọn theo thứ tự b�
 const AppInfo& info(AppId id);
 size_t count();                     // duyệt bảng: thứ tự = thứ tự trong Settings và trên Main Screen
 const AppInfo& at(size_t index);
-constexpr uint8_t kThemeCount = 3;          // = Icons::kThemeCount
+constexpr uint8_t kThemeCount = 4;          // = Icons::kThemeCount
 const void* icon(AppId id, uint8_t theme);  // lv_img_dsc_t* theo bộ icon; theme ngoài khoảng -> bộ 0; nullptr nếu app không có icon
 AppId findByKey(const char* key);   // COUNT nếu không có
 
@@ -567,9 +567,9 @@ void resetSelection();              // mặc định: các app selectable đầu
 
 Bảng `kInfos` trong `app_registry.cpp` là nơi duy nhất liệt kê app. Thứ tự các app `selectable` hiện tại (theo mockup): Music, Pet, Calendar, Visualizer, Album; Main và Settings có `selectable = false`. `AppManager::createApp()` tra bảng này (không còn `switch`).
 
-**Thêm app mới: 3 việc.** Thêm một giá trị vào `AppId`, khai báo factory weak trong `app_factories.hpp`, thêm một dòng vào `kInfos`. Settings và Main Screen tự cập nhật; không sửa `app_manager` hay `main_screen`. Đổi tên chỉ sửa dòng trong bảng. App muốn có icon thì thêm một giá trị vào `Icons::Id`, 3 ảnh PNG (mỗi theme một ảnh, 64x64, trắng trên nền trong suốt), sinh lại `icons_t*.cpp` và thêm một `case` trong `AppRegistry::icon()`. App chưa có icon vẫn hiện tên.
+**Thêm app mới: 3 việc.** Thêm một giá trị vào `AppId`, khai báo factory weak trong `app_factories.hpp`, thêm một dòng vào `kInfos`. Settings và Main Screen tự cập nhật; không sửa `app_manager` hay `main_screen`. Đổi tên chỉ sửa dòng trong bảng. App muốn có icon thì thêm một giá trị vào `Icons::Id`, 4 ảnh PNG (mỗi theme một ảnh, 64x64, trắng trên nền trong suốt), sinh lại `icons_t*.cpp` và thêm một `case` trong `AppRegistry::icon()`. App chưa có icon vẫn hiện tên.
 
-**Icon app:** 3 bộ vẽ tay theo kiểu pixel art (theme `night` = bộ 0 phù thủy/trăng, `mint` = bộ 1 rừng, `pink` = bộ 2 hoa anh đào), mỗi bộ 6 icon (music, pet, visual, calendar, album, settings), 64x64, luôn màu trắng, không tô màu theo theme. Dữ liệu `lv_img_dsc_t` (RGB565 trắng + alpha) nằm trong flash, không tốn RAM, lấy bằng `Icons::get(Icons::Id, theme)`. Chỉ hiện khi `!UI_COMPACT`; màn nhỏ hoặc app chưa có icon thì hiện tên. Chọn bộ icon theo khóa theme trong `iconSet()` của `main_screen.cpp`; theme mới chưa có bộ riêng dùng bộ 0.
+**Icon app:** 4 bộ vẽ tay theo kiểu pixel art (theme `night` = bộ 0 phù thủy/trăng, `mint` = bộ 1 rừng, `pink` = bộ 2 hoa anh đào, `christmas gift` = bộ 3 Giáng sinh), mỗi bộ 6 icon (music, pet, visual, calendar, album, settings), 64x64, luôn màu trắng, không tô màu theo theme. Dữ liệu `lv_img_dsc_t` (RGB565 trắng + alpha) nằm trong flash, không tốn RAM, lấy bằng `Icons::get(Icons::Id, theme)`. Chỉ hiện khi `!UI_COMPACT`; màn nhỏ hoặc app chưa có icon thì hiện tên. Chọn bộ icon theo khóa theme trong `iconSet()` của `main_screen.cpp`; theme mới chưa có bộ riêng dùng bộ 0.
 
 Danh sách app hiện trên Main Screen là lựa chọn của người dùng (tối đa `kMaxSelected`), lưu bằng khóa (`key`) nên thêm hoặc đổi thứ tự app trong bảng không làm hỏng dữ liệu đã lưu. Ô trống vẫn là nút có viền focus, bấm 5 không làm gì.
 
@@ -600,7 +600,7 @@ void applyToScreen(lv_obj_t* screen);// AppManager gọi khi dựng màn hình m
 }
 ```
 
-Chỉ gọi từ ngữ cảnh UI (đang giữ `LvglLock`). Theme có sẵn trong `theme.cpp`: `pink` (mặc định), `night`, `mint`. Thêm theme: thêm một khối vào cuối mảng `kThemes`, không đổi khóa theme đã có. Muốn có bộ icon riêng cho theme mới thì làm thêm một bộ icon và một dòng trong `iconSet()` (`main_screen.cpp`); chưa làm thì Main Screen dùng bộ icon 0.
+Chỉ gọi từ ngữ cảnh UI (đang giữ `LvglLock`). Theme có sẵn trong `theme.cpp`: `pink` (mặc định), `night`, `mint`, `christmas gift`. Thêm theme: thêm một khối vào cuối mảng `kThemes`, không đổi khóa theme đã có. Muốn có bộ icon riêng cho theme mới thì làm thêm một bộ icon và một dòng trong `iconSet()` (`main_screen.cpp`); chưa làm thì Main Screen dùng bộ icon 0.
 
 Màu trong app lấy bằng `lv_color_hex(Themes::current().panel)`... Ảnh nền: đặt `bgImage` để `applyToScreen` đặt ảnh làm nền màn hình, chữ trong suốt nổi lên trên; để chữ dễ đọc, đặt khối `scrim` bán trong suốt phía sau vùng có chữ. Ảnh nền chưa có ảnh nào (chờ SD/ImageService). Theme nạp từ thẻ SD (không cần nạp lại firmware) là hướng làm sau.
 
@@ -672,7 +672,7 @@ const lv_img_dsc_t* image();          // nullptr nếu không có; con trỏ s�
 | # | Chat | Phụ thuộc | Trạng thái |
 |---|---|---|---|
 | 0 | Core + hạ tầng: `platformio.ini`, `config/`, `lvgl_port`, `input_service`, `app_manager`, `app_registry`, `theme`, `settings_store`, app Settings, `psram` | - | Bước 1-5 xong và chạy đúng trên board (TFT/LVGL, phím serial, AppManager, bàn phím 3x3, màn ST7789 + theme + bảng đăng ký + Settings). Bước 6: `sd_storage` xong và chạy đúng trên board. Phần cứng I2S (Chat 5) và DS3231 (Chat 2) đã làm sau đó |
-| 1 | Main Screen (khung) + chuyển app, app stub | 0 | Xong và chạy đúng trên board: widget trái (đồng hồ + ảnh qua `SlideshowService`), focus/điều hướng hai nửa, phím 5 mở Album, icon app 3 bộ theo theme (64x64, trắng). Màu nút, viền focus, khung ảnh lấy từ theme. Đã có test máy tính với LVGL thật (`tools/app_test`, chat 9). Đồng hồ đã chuyển sang `TimeService::now()` (Chat 2), hiện đúng giờ thật trên board. |
+| 1 | Main Screen (khung) + chuyển app, app stub | 0 | Xong và chạy đúng trên board: widget trái (đồng hồ + ảnh qua `SlideshowService`), focus/điều hướng hai nửa, phím 5 mở Album, icon app 4 bộ theo theme (64x64, trắng). Màu nút, viền focus, khung ảnh lấy từ theme. Đã có test máy tính với LVGL thật (`tools/app_test`, chat 9). Đồng hồ đã chuyển sang `TimeService::now()` (Chat 2), hiện đúng giờ thật trên board. |
 | 2 | Time service | 0 | Xong và chạy đúng trên board: `TimeService` (Wire thuần, giờ địa phương ICT-7, cờ OSF, cache 200 ms, mutex), `tools/rtc_test` + `sync_time.py`, Main Screen dùng `TimeService::now()`. Test máy tính 160661 kiểm tra (ASan + UBSan). `syncNtp` đã viết, chưa thử trên board, chưa có chỗ gọi |
 | 3 | Image service + Album | 0 | Xong và chạy đúng trên board: giải mã JPG, lưới thumbnail, xem toàn màn hình. Test máy tính cho phần resize (32 kiểm tra) và cho Album (`tools/app_test`). Phím 3 đặt ảnh widget đã test trên board (mục 12). Chat đóng ngày 20/11/2026. leak_test (chat 9) không thấy rò rỉ khi vào/ra Album nhiều vòng |
 | 4 | Slideshow widget (Core 0) | 1, 3 | Xong và chạy đúng trên board. Giải mã 1 ảnh ở Core 0, cache PSRAM, cắt giữa kiểu cover, lưu đường dẫn vào /data/slideshow.txt. Không có chu kỳ chuyển ảnh (người dùng chọn từ Album). Phím chọn ảnh ở Album (phím 3) đã thêm. Test máy tính `tools/slideshow_test` (chat 9) |
@@ -785,7 +785,7 @@ Bản làm trước bị boot loop: `StoreProhibited` trong `TFT_eSPI::init()` (
 - [x] Trên board: điều hướng 4/6/2/8 (kể cả widget trái), phím 5 mở app, nhớ vị trí focus
 - [x] Trên board: 6 icon trắng hiện đúng (5 app + Settings). Phát hiện: hai dòng tô màu icon bằng `Themes::current().icon` làm icon chìm vào nền nên đã bỏ; icon luôn trắng
 - [x] Đồng hồ: lúc đầu dùng giờ hệ thống (chạy từ 1/1 00:00 khi chưa có RTC); từ Chat 2 dùng `TimeService::now()` nên hiện đúng giờ thật. Khi thiếu RTC tin cậy (không chip hoặc cờ OSF) hiện giờ giả `1/1 07:00` (ICT), giữ nguyên theo quyết định ở chat 9 (mục 11)
-- [x] Đổi theme: bộ icon, màu nút, viền focus, khung đổi đúng ở cả 3 theme (xem bằng mắt, chat 9)
+- [x] Đổi theme: bộ icon, màu nút, viền focus, khung đổi đúng ở cả 4 theme (xem bằng mắt, chat 9)
 - [x] 100 lần vào/ra app và đổi theme không rò rỉ: `leak_test` 300 vòng, không rò rỉ (mục 12.1)
 - Test máy tính cho Main Screen: `tools/app_test` (mục 12.1)
 
@@ -845,7 +845,7 @@ Phạm vi: Calendar không thuộc chat này. Không sửa `main.cpp` và không
 **A. Kiểm thử rò rỉ và độ ổn định trên board (`tools/leak_test`, env `leak_test`, giai đoạn 0-7): đạt.**
 - Phương pháp: đo mốc ban đầu, vài vòng khởi động nguội, rồi đo độ trôi bộ nhớ (hồi quy bình phương tối thiểu), ngưỡng 512 B, theo dõi số task, phát hiện dứt tiếng bằng `positionMs()` so với đồng hồ thật (cửa sổ 500 ms, tỉ lệ < 0,85 là dứt).
 - Các giai đoạn: vào/ra từng app nhiều vòng (0, 2-4), nhạc phát nền (5), rút/cắm thẻ SD giữa chừng (6), đổi ảnh widget khi vào Music (7). Tất cả đạt: không rò rỉ, không treo; thẻ SD tự đọc lại sau khi cắm lại; nhạc về `STOPPED` khi rút thẻ giữa lúc phát; nhạc nền không dứt tiếng khi chuyển app.
-- Thử tay trên board: theme đúng ở cả 3 theme; Visualizer, đĩa xoay và mèo mượt; rút I2C thì giờ hiện `1/1 07:00`, cắm lại thì đúng giờ; rút thẻ SD thì Main hiện thông báo đặt sẵn, cắm lại thì widget hiện đúng ảnh đã chọn.
+- Thử tay trên board: theme đúng ở cả 4 theme; Visualizer, đĩa xoay và mèo mượt; rút I2C thì giờ hiện `1/1 07:00`, cắm lại thì đúng giờ; rút thẻ SD thì Main hiện thông báo đặt sẵn, cắm lại thì widget hiện đúng ảnh đã chọn.
 
 **B. Test máy tính (g++ + stub; ASan/UBSan, TSan chạy bằng `setarch $(uname -m) -R`; kiểm tra đột biến): đạt, đã chạy lại trên máy người dùng.**
 
@@ -869,7 +869,7 @@ Phạm vi: Calendar không thuộc chat này. Không sửa `main.cpp` và không
 | Album | 50-54 | 18-63 (đôi khi 120-270) | 141 / 148 | 134 / 124 |
 | Music | 62-72 | 16-18 | 136 / 144 | 89 / 94 |
 | Pet | 164-183 | 17-19 | 252 / 270 | 35 / 60 |
-
+ 
 - Không có lần chuyển nào thất bại (`fail=0`, 8 lần mỗi app, cả hai chế độ). Lần "nguội" gần như không chậm hơn (trừ Music lần đầu, hơn khoảng 17 ms).
 - Số lần vào/ra thu thập từ log chạy dài: Pet 59 lần trung bình 173 ms (171-222); Music 57 lần trung bình 66 ms (63-78); Album 63 lần trung bình 53 ms (52-59); Settings 62 lần 19 ms; Visualizer 53 lần 19 ms.
 - `AppManager::tick()` chặn `loop()` lâu nhất: Pet vào khoảng 250-270 ms (tính cả đầu-cuối), Album ra tới khoảng 130-270 ms. Khoảng cách tối đa giữa hai vòng `loop()` đo được: 275 ms (hai phần đo ngắn), 343 ms (30 phút chạy dài).
