@@ -96,8 +96,8 @@ src/
   apps/
     main_screen/  main_screen.hpp/.cpp (+ slideshow_widget.hpp/.cpp)
     settings/     settings_app.cpp (chọn theme, chọn app hiện trên Main Screen)
-    album/        album_app.hpp/.cpp, disc_cover.hpp/.cpp (ảnh mặt đĩa)
-    music/        music_app.hpp/.cpp
+    album/        album_app.hpp/.cpp, 
+    music/        music_app.hpp/.cpp, disc_cover.hpp/.cpp (ảnh mặt đĩa)
     visualizer/   visualizer_app.hpp/.cpp, fft.hpp/.cpp (FFT thuần, test được trên máy tính)
     calendar/     calendar_app.hpp/.cpp
     pet/          pet_app, pet_state, pet_types, pet_art (dữ liệu pixel thuần), pet_pixel, pet_sprite, pet_icons, pet_disc, pet_background
@@ -456,7 +456,7 @@ enum class AudioState : uint8_t { STOPPED, PLAYING, PAUSED, ERROR };
 
 namespace AudioService {
 bool begin();                              // I2S + task decode ở Core 0
-bool play(const char* path);               // MP3/WAV từ SD
+bool play(const char* path);               // MP3 từ SD
 void pause();
 void resume();
 void stop();
@@ -676,7 +676,7 @@ const lv_img_dsc_t* image();          // nullptr nếu không có; con trỏ s�
 | 2 | Time service | 0 | Xong và chạy đúng trên board: `TimeService` (Wire thuần, giờ địa phương ICT-7, cờ OSF, cache 200 ms, mutex), `tools/rtc_test` + `sync_time.py`, Main Screen dùng `TimeService::now()`. Test máy tính 160661 kiểm tra (ASan + UBSan). `syncNtp` đã viết, chưa thử trên board, chưa có chỗ gọi |
 | 3 | Image service + Album | 0 | Xong và chạy đúng trên board: giải mã JPG, lưới thumbnail, xem toàn màn hình. Test máy tính cho phần resize (32 kiểm tra) và cho Album (`tools/app_test`). Phím 3 đặt ảnh widget đã test trên board (mục 12). Chat đóng ngày 20/11/2026. leak_test (chat 9) không thấy rò rỉ khi vào/ra Album nhiều vòng |
 | 4 | Slideshow widget (Core 0) | 1, 3 | Xong và chạy đúng trên board. Giải mã 1 ảnh ở Core 0, cache PSRAM, cắt giữa kiểu cover, lưu đường dẫn vào /data/slideshow.txt. Không có chu kỳ chuyển ảnh (người dùng chọn từ Album). Phím chọn ảnh ở Album (phím 3) đã thêm. Test máy tính `tools/slideshow_test` (chat 9) |
-| 5 | Audio service + Music Player | 0 | Xong và chạy đúng trên board: AudioService (minimp3 + I2S), Music Player, ảnh đĩa xoay, âm lượng. Test máy tính `tools/audio_test` (chat 9). Chân I2S đã có trong `config/pins.hpp`; `audio_service.cpp`. |
+| 5 | Audio service + Music Player | 0 | Xong và chạy đúng trên board: AudioService (minimp3 + I2S), Music Player, ảnh đĩa xoay, âm lượng. Test máy tính `tools/audio_test` (chat 9). Chân I2S đã có trong `config/pins.hpp`; audio_service.cpp đã dùng các hằng số đó|
 | 6 | Visualizer | 5 | Xong và chạy ổn trên board: fft + VisualizerApp 3 kiểu, 7/9 đổi kiểu, 4/6 chỉnh dạng. Test máy tính đạt (fft 2695 kiểm tra, VisualizerApp 1142 kiểm tra bằng stub LVGL). Đã kiểm tra rò rỉ qua nhiều lần vào/ra trên board (chat 9). Chưa đo FPS bằng số (xem bằng mắt thấy mượt) |
 | 7 | Calendar | 2 | Xong về mặt code, build được: CalendarLogic (ngày trong tháng, thứ Sakamoto, cộng/trừ ngày, đổi tháng, parser JSON thủ công cho `/data/events.json`) tách thuần C++. Đọc sự kiện lúc onCreate, chấm đánh dấu ngày có sự kiện, phím 5 xem lần lượt khi nhiều sự kiện/ngày, phím 3 về hôm nay. Chưa có test máy tính (ASan), chưa thử trên board |
 | 8 | Pet | 0 | Xong và chạy đúng trên board: chỉ số, icon pixel, nền ngày/đêm động, mèo ngủ, hoạt ảnh. Chưa lưu SD (chờ SD và DS3231). Tốc độ giảm chỉ số đã chốt ở mức hiện tại (PET_DECAY_FAST = 1, người dùng chọn giữ nguyên ở chat 9). Test máy tính `tools/app_test` (chat 9) |
@@ -721,7 +721,7 @@ Thứ tự gợi ý để sớm thấy kết quả: 0 → 1 → 8 → 2 → 3 �
 - [ ] Danh sách app: thêm app thứ 7 trở lên thì Settings cuộn được nhưng launcher giới hạn `kMaxSelected` = 5 app chọn cùng lúc
 - [x] Nhạc không tự chuyển bài khi rời Music: bài đang phát chạy hết rồi dừng
 - [x] Định dạng nhạc: MP3 (minimp3), không hỗ trợ WAV/AAC. Người dùng tự đổi file sang MP3 128 kbps, tên không dấu
-- [x] Theme có ảnh nền (bgImage) thì ảnh đĩa Music lộ phần góc (đang bake màu bg của theme)
+- [x] Theme có ảnh nền (bgImage) thì ảnh đĩa Music lộ phần góc (đang bake màu bg của theme), đã biết, chấp nhận
 - [x] Visualizer: không hiện tên bài (không cần API tên bài trong AudioService), 3 kiểu (thanh đối xứng giữa, waveform, thanh đối xứng hai viền), nền đen, FFT 256 ở Core 1, thoát app thì hủy, nhạc chạy nền
 - [ ] Visualizer: nếu bass thô trên board thì đổi FFT lên 512 (đổi một hằng constexpr)
 - [x] Icon app Main Screen: 4 bộ icon theo 4 theme, 64x64, luôn màu trắng (không tô theo theme); chọn bộ theo khóa theme
