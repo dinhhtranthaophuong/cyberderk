@@ -782,7 +782,7 @@ Bản làm trước bị boot loop: `StoreProhibited` trong `TFT_eSPI::init()` (
 **Chat 1: Main Screen**
 - [x] Trên board: điều hướng 4/6/2/8 (kể cả widget trái), phím 5 mở app, nhớ vị trí focus
 - [x] Trên board: 6 icon trắng hiện đúng (5 app + Settings). Phát hiện: hai dòng tô màu icon bằng `Themes::current().icon` làm icon chìm vào nền nên đã bỏ; icon luôn trắng
-- [x] Đồng hồ: chạy từ 1/1 00:00 khi chưa có RTC (giờ hệ thống), hành vi dự kiến cho tới khi nối `TimeService`
+- [x] Đồng hồ: lúc đầu dùng giờ hệ thống (chạy từ 1/1 00:00 khi chưa có RTC); từ Chat 2 dùng `TimeService::now()` nên hiện đúng giờ thật. Khi thiếu RTC tin cậy (không chip hoặc cờ OSF) hiện giờ giả `1/1 07:00` (ICT), giữ nguyên theo quyết định ở chat 9 (mục 11)
 - [x] Đổi theme: bộ icon, màu nút, viền focus, khung đổi đúng ở cả 3 theme (xem bằng mắt, chat 9)
 - [x] 100 lần vào/ra app và đổi theme không rò rỉ: `leak_test` 300 vòng, không rò rỉ (mục 12.1)
 - Test máy tính cho Main Screen: `tools/app_test` (mục 12.1)
