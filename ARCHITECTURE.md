@@ -713,7 +713,7 @@ Thứ tự gợi ý để sớm thấy kết quả: 0 → 1 → 8 → 2 → 3 �
 - [ ] Host SPI thực tế của TFT_eSPI trên bản Arduino core đang dùng (mục 1.2: mặc định FSPI; xác nhận khi làm SD)
 - [x] Ô trống cuối lưới Main Screen: đã chốt là Settings
 - [x] Nền ngày/đêm và hình ảnh mèo của Pet đã chốt (màu lấy từ ảnh mẫu)
-- [ ] Nền hoàng hôn và trời mưa: mèo phản ứng ra sao chưa quyết định
+- [ ] Nền hoàng hôn và trời mưa: mèo phản ứng ra sao chưa quyết định (không nhắc lại đến khi được yêu cầu)
 - [x] Theme: bảng màu có tên, người dùng chọn trong Settings, lưu NVS (mục 6.11, 6.12)
 - [x] Theme áp cho widget slideshow của Main Screen (đã xong)
 - [ ] Theme: ảnh nền (cần SD/ImageService), nạp theme từ thẻ SD
@@ -727,7 +727,7 @@ Thứ tự gợi ý để sớm thấy kết quả: 0 → 1 → 8 → 2 → 3 �
 - [x] Icon app Main Screen: 4 bộ icon theo 4 theme, 64x64, luôn màu trắng (không tô theo theme); chọn bộ theo khóa theme
 - [x] Time service: Wire thuần (không RTClib), I2C 0x68 ở 100 kHz, DS3231 lưu giờ địa phương, múi giờ mặc định `ICT-7` (mục 6.8)
 - [x] Khi chưa có RTC tin cậy (không chip hoặc cờ OSF): dùng giờ hệ thống, `begin()` trả `false`. Main Screen khi đó hiện giờ giả `1/1 07:00` (ICT); đã thử trên board: rút I2C thì hiện 1/1 07:00, cắm lại thì về đúng giờ
-- [ ] NTP (`TimeService::syncNtp`): đã viết, có test máy tính bằng SNTP giả, chưa thử trên board; chưa có chỗ gọi và chưa có cách cấp SSID/mật khẩu WiFi (quyết định khi làm WiFi)
+- [ ] NTP (`TimeService::syncNtp`): đã viết, có test máy tính bằng SNTP giả, chưa thử trên board; chưa có chỗ gọi và chưa có cách cấp SSID/mật khẩu WiFi (quyết định khi làm WiFi) (không nhắc lại đến khi được yêu cầu)
 - [ ] Giao diện đặt giờ trong app (Settings hoặc Calendar): hiện chỉ đặt qua serial bằng `tools/rtc_test`
 - [x] Thử trên board với firmware chính: rút dây I2C (kịch bản mất pin/cờ OSF chưa thử)
 - [ ] Album/ImageService: không nhận JPG progressive, bỏ qua EXIF orientation (ảnh phải chuẩn bị sẵn trên PC, mục 6.6). Chỉ xử lý nếu có ảnh thật bị xoay sai hoặc không mở được
