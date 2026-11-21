@@ -854,7 +854,7 @@ Phạm vi: Calendar không thuộc chat này. Không sửa `main.cpp` và không
 | `tools/slideshow_test` | `slideshow_service` | 4 cấu hình, 123587 kiểm tra, 0 hỏng |
 | `tools/app_test` (`sh run.sh quick`) | Main Screen, Album, Pet (LVGL 8.3.11 thật) | 4600 kiểm tra, 0 lỗi; đột biến: 27/30 bị bắt, 3 tương đương (M18, M20, M28) |
 
-- `app_test`: mốc bộ nhớ ổn định qua 300 vòng (82345 B, 195 khối, 18 đối tượng, 0 task); chèn lỗi cấp phát PSRAM (chỉ qua `Psram::alloc`) ở các vị trí app0=23, app5=59, app1=21 đều không rò, không treo; fuzz phím theo mô hình tham chiếu từng bước (Main, Album, Pet) +0 B; thử `millis()` quay vòng cho Pet; có kiểm tra đua giữa `AppManager::tick` và `LvglPort::tick` khi ảnh widget đổi.
+- `app_test`: mốc bộ nhớ ổn định qua 300 vòng (82345 B, 195 khối, 18 đối tượng, 0 task); chèn lỗi cấp phát PSRAM (chỉ qua `Psram::alloc`) ở các vị trí app0=23, app5=59, app1=21 đều không rò, không treo; fuzz phím theo mô hình tham chiếu từng bước (Main, Album, Pet) +0 B; thử `millis()` quay vòng cho Pet; có kiểm tra đua giữa `AppManager::tick` và `LvglPort::tick` khi ảnh widget đổi. Test Pet biên dịch với `-DPET_DECAY_FAST=1` (trong `run.sh`) vì các kiểm tra chờ theo nhịp nhanh; firmware thật dùng `PET_DECAY_FAST = 0`.
 - Lỗi do test bắt trong chính test/stub (đã sửa): lỗi stub heap (`ESP.getFreeHeap`), cache ảnh widget 71 KB bị tính nhầm là rò, `run.sh` truyền đối số rỗng làm test bỏ qua toàn bộ.
 
 **C. Đo hiệu năng trên board (`tools/perf_test`, env `perf_test`, thẻ SD có `/music/exile.mp3`, 9 ảnh trong `/images`, theme `mint`): đạt.** Ngày chạy 2026-11-18/19. `PERF_NO_TASKSTATE=1`: stack đọc theo tên task.
