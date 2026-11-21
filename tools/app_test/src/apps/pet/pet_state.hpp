@@ -16,6 +16,13 @@
 #include <cstdint>
 #include "apps/pet/pet_types.hpp"   // PetMood, PetSkin, PetStat (giá trị 0..100, 100 = tốt)
 
+// Ảnh chụp trạng thái để lưu ra thẻ SD (không gồm phần dư thời gian và tâm trạng "vui").
+struct PetSnapshot {
+    uint8_t value[static_cast<int>(PetStat::COUNT)];   // theo thứ tự PetStat
+    PetSkin skin;
+    bool    asleep;
+};
+
 class PetState {
 public:
     static constexpr uint8_t kMax = 100;
@@ -38,6 +45,12 @@ public:
     bool toggleSleep();
     bool sleeping() const { return asleep_; }
 
+    // Lưu / khôi phục qua lần tắt máy. restore() đặt lại trạng thái từ ảnh chụp rồi mô phỏng
+    // `offlineSec` giây đã trôi qua (tối đa 24 giờ; giảm chỉ số, ngủ/dậy như bình thường), sau đó
+    // no/vui/sạch không thấp hơn min(giá trị đã lưu, 20) do tắt máy.
+    PetSnapshot snapshot() const;
+    void restore(const PetSnapshot& s, uint32_t offlineSec);
+
     PetSkin skin() const { return skin_; }
     void nextSkin();             // xoay vòng: tam thể, tuxedo, trắng, cam vằn
 
@@ -51,6 +64,7 @@ private:
     PetState();
     void add(PetStat stat, int delta);
     void makeHappy(uint32_t nowMs);
+    void advance(uint32_t dtMs);   // giảm chỉ số + năng lượng cho dtMs mili giây
     void updateEnergy(uint32_t dtMs);
 
     uint8_t  val_[kStatCount];
