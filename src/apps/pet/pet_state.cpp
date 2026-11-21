@@ -30,6 +30,11 @@ constexpr uint32_t kHappyMs            = 2000;   // thời gian vui sau một h�
 constexpr uint8_t  kSadBelow           = 40;     // mặt nạ tối quá 3/5 (giá trị dưới 40) thì mèo buồn
 constexpr uint32_t kSleepStatDecayDiv  = 2;      // khi ngủ, no/vui/sạch giảm chậm đi 2 lần (đặt 1 để tắt)
 
+// Tắt máy lâu (restore): chỉ số no/vui/sạch không tụt dưới 20 (hoặc dưới giá trị đã lưu nếu thấp hơn).
+constexpr uint8_t  kOfflineFloor       = 20;
+constexpr uint32_t kOfflineMaxSec      = 24u * 3600u;   // mô phỏng tối đa 24 giờ (đã chạm sàn từ lâu)
+constexpr uint32_t kOfflineStepMs      = 30000u;        // mô phỏng theo từng bước 30 giây
+
 constexpr int idx(PetStat s) { return static_cast<int>(s); }
 
 // Cộng dồn dt vào phần dư acc, trả số điểm trọn vẹn đã qua (tối đa 255), giữ lại phần lẻ.
@@ -60,6 +65,12 @@ void PetState::update(uint32_t nowMs) {
     const uint32_t dt = nowMs - lastMs_;   // đúng cả khi millis() tràn số
     lastMs_ = nowMs;
 
+    advance(dt);
+
+    if (happy_ && static_cast<int32_t>(happyUntil_ - nowMs) <= 0) happy_ = false;
+}
+
+void PetState::advance(uint32_t dt) {
     // no, vui, sạch: giảm theo thời gian (chậm hơn khi đang ngủ).
     const uint32_t dtStat = asleep_ ? dt / kSleepStatDecayDiv : dt;
     for (int i = 0; i < 3; ++i) {
@@ -68,8 +79,39 @@ void PetState::update(uint32_t nowMs) {
     }
 
     updateEnergy(dt);
+}
 
-    if (happy_ && static_cast<int32_t>(happyUntil_ - nowMs) <= 0) happy_ = false;
+PetSnapshot PetState::snapshot() const {
+    PetSnapshot s;
+    for (int i = 0; i < kStatCount; ++i) s.value[i] = val_[i];
+    s.skin = skin_;
+    s.asleep = asleep_;
+    return s;
+}
+
+void PetState::restore(const PetSnapshot& s, uint32_t offlineSec) {
+    for (int i = 0; i < kStatCount; ++i) {
+        val_[i] = (s.value[i] > kMax) ? kMax : s.value[i];
+        acc_[i] = 0;
+    }
+    skin_ = (s.skin < PetSkin::COUNT) ? s.skin : PetSkin::CALICO;
+    asleep_ = s.asleep;
+    happy_ = false;
+    started_ = false;   // update() kế tiếp chỉ ghi lại mốc thời gian
+
+    uint8_t floorVal[3];
+    for (int i = 0; i < 3; ++i) floorVal[i] = (val_[i] < kOfflineFloor) ? val_[i] : kOfflineFloor;
+
+    if (offlineSec > kOfflineMaxSec) offlineSec = kOfflineMaxSec;
+    uint32_t leftMs = offlineSec * 1000u;
+    while (leftMs > 0) {
+        const uint32_t dt = (leftMs < kOfflineStepMs) ? leftMs : kOfflineStepMs;
+        advance(dt);
+        leftMs -= dt;
+    }
+    for (int i = 0; i < 3; ++i) {
+        if (val_[i] < floorVal[i]) val_[i] = floorVal[i];
+    }
 }
 
 void PetState::updateEnergy(uint32_t dtMs) {
