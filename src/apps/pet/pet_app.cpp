@@ -4,6 +4,7 @@
 #include "apps/pet/pet_art.hpp"
 #include "config/display.hpp"
 #include "core/app_manager.hpp"
+#include "apps/pet/pet_store.hpp"
 
 // PET_DEBUG = 1: in chỉ số ra serial mỗi 3 giây và sau mỗi hành động (để chỉnh tốc độ giảm).
 // Đặt 0 (hoặc -DPET_DEBUG=0) để tắt.
@@ -114,6 +115,7 @@ void PetApp::onCreate(lv_obj_t* parent) {
 
     // Tính bù thời gian đã trôi qua kể từ lần trước (chỉ số giảm cả khi app không mở).
     PetState& st = PetState::instance();
+    PetStore::load();   // nạp trạng thái từ SD (chỉ chạy lần đầu sau khi bật máy)
     st.update(millis());
     lastLogMs_ = millis();
 
@@ -208,6 +210,7 @@ void PetApp::onPause() {
 }
 
 void PetApp::onDestroy() {
+    PetStore::flush();
     destroying_ = true;   // chặn callback ghi s_lastFocus khi group tự dời focus lúc xóa nút
 
     // Xóa mèo, nền, mặt nạ, ô màu (object + buffer PSRAM) trong lúc object còn sống,
@@ -239,6 +242,7 @@ void PetApp::onTick(uint32_t nowMs) {
     PetState::instance().update(now);
     refresh();
     sprite_.tick(now);
+    PetStore::tick(now);
     background_.tick(now);
 
 #if PET_DEBUG
@@ -366,6 +370,8 @@ void PetApp::activate(int idx) {
             Serial.printf("[Pet] nut %s: chua co tac dung\n", kButtons[idx].name);
             return;
     }
+
+    PetStore::markDirty(now);   // mọi nhánh thất bại đã return ở trên
 
 #if PET_DEBUG
     logStats(kButtons[idx].name);
