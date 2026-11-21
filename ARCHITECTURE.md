@@ -678,7 +678,7 @@ const lv_img_dsc_t* image();          // nullptr nếu không có; con trỏ s�
 | 4 | Slideshow widget (Core 0) | 1, 3 | Xong và chạy đúng trên board. Giải mã 1 ảnh ở Core 0, cache PSRAM, cắt giữa kiểu cover, lưu đường dẫn vào /data/slideshow.txt. Không có chu kỳ chuyển ảnh (người dùng chọn từ Album). Phím chọn ảnh ở Album (phím 3) đã thêm. Test máy tính `tools/slideshow_test` (chat 9) |
 | 5 | Audio service + Music Player | 0 | Xong và chạy đúng trên board: AudioService (minimp3 + I2S), Music Player, ảnh đĩa xoay, âm lượng. Test máy tính `tools/audio_test` (chat 9). Chân I2S đã có trong `config/pins.hpp`; audio_service.cpp đã dùng các hằng số đó|
 | 6 | Visualizer | 5 | Xong và chạy ổn trên board: fft + VisualizerApp 3 kiểu, 7/9 đổi kiểu, 4/6 chỉnh dạng. Test máy tính đạt (fft 2695 kiểm tra, VisualizerApp 1142 kiểm tra bằng stub LVGL). Đã kiểm tra rò rỉ qua nhiều lần vào/ra trên board (chat 9). Chưa đo FPS bằng số (xem bằng mắt thấy mượt) |
-| 7 | Calendar | 2 | Xong về mặt code, build được: CalendarLogic (ngày trong tháng, thứ Sakamoto, cộng/trừ ngày, đổi tháng, parser JSON thủ công cho `/data/events.json`) tách thuần C++. Đọc sự kiện lúc onCreate, chấm đánh dấu ngày có sự kiện, phím 5 xem lần lượt khi nhiều sự kiện/ngày, phím 3 về hôm nay. Chưa có test máy tính (ASan), chưa thử trên board |
+| 7 | Calendar | 2 | Xong về mặt code, build được, test máy tính CalendarLogic đạt (240 kiểm tra, ASan+UBSan). Chưa thử trên board |
 | 8 | Pet | 0 | Xong và chạy đúng trên board: chỉ số, icon pixel, nền ngày/đêm động, mèo ngủ, hoạt ảnh, lưu trạng thái vào SD (`/data/pet.txt`) và tính bù thời gian tắt máy bằng DS3231 (đã thử trên board: tắt máy lâu thì no/vui/sạch xuống khoảng 20, mèo giữ đúng màu lông). Tốc độ giảm chỉ số đã chốt ở mức hiện tại (PET_DECAY_FAST = 0). Test máy tính `tools/app_test` (chat 9) |
 | 9 | Tối ưu + kiểm thử | tất cả | Xong (trừ Calendar, ngoài phạm vi): A) kiểm thử rò rỉ và độ ổn định trên board (`leak_test`, giai đoạn 0-7) đạt; B) test máy tính audio_service, slideshow_service, Main Screen/Album/Pet đạt; C) đo hiệu năng trên board (`perf_test`) đạt, soak 30 phút không rò rỉ, không dứt tiếng. Chi tiết và số đo ở mục 12.1. Các điểm còn mở ghi ở mục 11 |
 
@@ -743,7 +743,7 @@ Thứ tự gợi ý để sớm thấy kết quả: 0 → 1 → 8 → 2 → 3 �
 - [ ] `loop()` có thể bị chặn tới khoảng 340 ms khi chuyển app (thoát Album, vào Pet), không làm dứt tiếng nhạc; nếu sau này cần phản hồi phím nhanh hơn thì cân nhắc tách việc dọn Album khỏi `tick()`
 - [ ] Thời gian chuyển app đo "đầu-cuối" bởi `perf_test` luôn cao hơn số `[AppManager]` khoảng 60-90 ms (chưa rõ nguyên nhân: chờ vẽ khung/lượt `loop()`), cần tìm hiểu nếu muốn con số cảm nhận thật
 - [ ] Calendar: chưa có giao diện thêm/sửa sự kiện trên thiết bị (hiện sửa `/data/events.json` trực tiếp trên thẻ SD)
-- [ ] Calendar: chưa test máy tính, chưa thử trên board (xem mục 12, Chat 7)
+- [x] Calendar: test máy tính CalendarLogic đạt (tools/calendar_test, ASan+UBSan, 240 kiểm tra). Chưa thử trên board
 
 ## 12. Nhật ký kiểm thử chat 0 (làm lại từ đầu)
 
@@ -833,7 +833,7 @@ Bản làm trước bị boot loop: `StoreProhibited` trong `TFT_eSPI::init()` (
 
 **Chat 7: Calendar**
 - [x] Build được (chưa chạy thử trên board)
-- [ ] Test máy tính cho CalendarLogic (ASan): daysInMonth/isLeap, weekdayOf so với libc, addDays/shiftMonth ở biên năm 2000/2099, parseEvents (JSON đúng, thiếu field, ngày sai, UTF-8, mảng rỗng, vượt kMaxEvents)
+- [x] Test máy tính cho CalendarLogic: `tools/calendar_test` (g++ + ASan + UBSan, 240 kiểm tra đạt): daysInMonth/isLeap (toàn bộ 2000-2099), weekdayOf đối chiếu Zeller, addDays/shiftMonth ở biên năm 2000/2099, parseEvents (JSON đúng, thiếu field, ngày sai, UTF-8, mảng rỗng, vượt kMaxEvents, buffer không có '\0' cuối)
 - [ ] Trên board: đọc `/data/events.json`, chấm đánh dấu đúng ngày, nhiều sự kiện/ngày bấm 5 xem lần lượt, phím 3 về hôm nay, không có file/SD vẫn chạy được
 - [ ] 100 lần vào/ra app không rò rỉ (log [AppManager])
 
