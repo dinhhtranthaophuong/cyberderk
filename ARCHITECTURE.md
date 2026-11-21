@@ -678,7 +678,7 @@ const lv_img_dsc_t* image();          // nullptr nếu không có; con trỏ s�
 | 4 | Slideshow widget (Core 0) | 1, 3 | Xong và chạy đúng trên board. Giải mã 1 ảnh ở Core 0, cache PSRAM, cắt giữa kiểu cover, lưu đường dẫn vào /data/slideshow.txt. Không có chu kỳ chuyển ảnh (người dùng chọn từ Album). Phím chọn ảnh ở Album (phím 3) đã thêm. Test máy tính `tools/slideshow_test` (chat 9) |
 | 5 | Audio service + Music Player | 0 | Xong và chạy đúng trên board: AudioService (minimp3 + I2S), Music Player, ảnh đĩa xoay, âm lượng. Test máy tính `tools/audio_test` (chat 9). Chân I2S đã có trong `config/pins.hpp`; audio_service.cpp đã dùng các hằng số đó|
 | 6 | Visualizer | 5 | Xong và chạy ổn trên board: fft + VisualizerApp 3 kiểu, 7/9 đổi kiểu, 4/6 chỉnh dạng. Test máy tính đạt (fft 2695 kiểm tra, VisualizerApp 1142 kiểm tra bằng stub LVGL). Đã kiểm tra rò rỉ qua nhiều lần vào/ra trên board (chat 9). Chưa đo FPS bằng số (xem bằng mắt thấy mượt) |
-| 7 | Calendar | 2 | Xong về mặt code, build được, test máy tính CalendarLogic đạt (240 kiểm tra, ASan+UBSan). Chưa thử trên board |
+| 7 | Calendar | 2 | Xong về mặt code, build được, test máy tính CalendarLogic đạt (240 kiểm tra, ASan+UBSan). Đã thử trên board |
 | 8 | Pet | 0 | Xong và chạy đúng trên board: chỉ số, icon pixel, nền ngày/đêm động, mèo ngủ, hoạt ảnh, lưu trạng thái vào SD (`/data/pet.txt`) và tính bù thời gian tắt máy bằng DS3231 (đã thử trên board: tắt máy lâu thì no/vui/sạch xuống khoảng 20, mèo giữ đúng màu lông). Tốc độ giảm chỉ số đã chốt ở mức hiện tại (PET_DECAY_FAST = 0). Test máy tính `tools/app_test` (chat 9) |
 | 9 | Tối ưu + kiểm thử | tất cả | Xong (trừ Calendar, ngoài phạm vi): A) kiểm thử rò rỉ và độ ổn định trên board (`leak_test`, giai đoạn 0-7) đạt; B) test máy tính audio_service, slideshow_service, Main Screen/Album/Pet đạt; C) đo hiệu năng trên board (`perf_test`) đạt, soak 30 phút không rò rỉ, không dứt tiếng. Chi tiết và số đo ở mục 12.1. Các điểm còn mở ghi ở mục 11 |
 
@@ -731,7 +731,6 @@ Thứ tự gợi ý để sớm thấy kết quả: 0 → 1 → 8 → 2 → 3 �
 - [ ] Giao diện đặt giờ trong app (Settings hoặc Calendar): hiện chỉ đặt qua serial bằng `tools/rtc_test`
 - [x] Thử trên board với firmware chính: rút dây I2C (kịch bản mất pin/cờ OSF chưa thử)
 - [ ] Album/ImageService: không nhận JPG progressive, bỏ qua EXIF orientation (ảnh phải chuẩn bị sẵn trên PC, mục 6.6). Chỉ xử lý nếu có ảnh thật bị xoay sai hoặc không mở được
-- [ ] Album: thông báo "Khong luu duoc" cũng hiện khi ghi SD lỗi nhưng ảnh widget vẫn đổi trong RAM (mục 6.13, mất sau khi khởi động lại). Có thể đổi chuỗi thành "Chua luu duoc" cho đúng nghĩa
 
 **Phát hiện từ chat 9 (chưa quyết định, chưa sửa):**
 - [x] Music giữ lại khoảng 1,2 MB bộ đệm khung đĩa sau khi thoát (cache thay thế được khi đổi ảnh): chấp nhận, ghi ở mục 7
@@ -835,7 +834,7 @@ Bản làm trước bị boot loop: `StoreProhibited` trong `TFT_eSPI::init()` (
 - [x] Build được, chạy đúng trên board
 - [x] Test máy tính cho CalendarLogic: `tools/calendar_test` (g++ + ASan + UBSan, 240 kiểm tra đạt): daysInMonth/isLeap (toàn bộ 2000-2099), weekdayOf đối chiếu Zeller, addDays/shiftMonth ở biên năm 2000/2099, parseEvents (JSON đúng, thiếu field, ngày sai, UTF-8, mảng rỗng, vượt kMaxEvents, buffer không có '\0' cuối)
 - [x] Trên board: đọc `/data/events.json`, chấm đánh dấu đúng ngày, nhiều sự kiện/ngày bấm 5 xem lần lượt, phím 3 về hôm nay, không có file/SD vẫn chạy được
-- [x] Nhiều lần vào/ra app không rò rỉ (theo dõi log [AppManager], chưa chạy qua tools/leak_test chính thức vì Calendar ngoài phạm vi chat 9)
+- [x] Nhiều lần vào/ra app không rò rỉ (theo dõi log [AppManager], chưa chạy qua tools/leak_test chính thức)
 
 ### 12.1 Chat 9: Tối ưu + kiểm thử
 
