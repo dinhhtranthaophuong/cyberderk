@@ -8,7 +8,7 @@
 // vào build_flags).
 // ---------------------------------------------------------------------------
 #ifndef PET_DECAY_FAST
-#define PET_DECAY_FAST 1
+#define PET_DECAY_FAST 0
 #endif
 
 namespace {
