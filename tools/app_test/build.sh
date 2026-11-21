@@ -6,7 +6,7 @@ NAME=$1; SAN=$2; shift 2
 OUT=${OUT:-/tmp/app_test_build}; mkdir -p $OUT
 LVGL=${LVGL_DIR:-./lvgl}
 SRC=${SRCDIR:-src}
-DEFS="-DLV_CONF_INCLUDE_SIMPLE -DSCREEN_W=${SW:-320} -DSCREEN_H=${SH:-240}"
+DEFS="-DLV_CONF_INCLUDE_SIMPLE -DSCREEN_W=${SW:-320} -DSCREEN_H=${SH:-240} -DPET_DECAY_FAST=1"
 INC="-Istubs -I$SRC -I$LVGL -I."
 LIBD=$OUT/lvgl_$(echo "$SAN" | tr -c 'a-z' '_')
 if [ ! -f $LIBD/done ]; then

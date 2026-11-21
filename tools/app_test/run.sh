@@ -25,13 +25,13 @@ build_run() { # ten std flags [tsan]
 }
 case "$1" in
   mutants) exec python3 mutants.py ;;
-  quick) build_run asan17 gnu++17 "-fsanitize=address,undefined" ;;
+  quick) build_run asan17 gnu++17 "-fsanitize=address,undefined -DPET_DECAY_FAST=1" ;;
   "")
-    build_run asan11 gnu++11 "-fsanitize=address,undefined"
-    build_run asan17 gnu++17 "-fsanitize=address,undefined"
-    build_run asan20 gnu++20 "-fsanitize=address,undefined"
-    build_run tsan17 gnu++17 "-fsanitize=thread" tsan ;;
-  *) ONLY=$1; export ONLY; build_run asan17 gnu++17 "-fsanitize=address,undefined" ;;
+    build_run asan11 gnu++11 "-fsanitize=address,undefined -DPET_DECAY_FAST=1"
+    build_run asan17 gnu++17 "-fsanitize=address,undefined -DPET_DECAY_FAST=1"
+    build_run asan20 gnu++20 "-fsanitize=address,undefined -DPET_DECAY_FAST=1"
+    build_run tsan17 gnu++17 "-fsanitize=thread -DPET_DECAY_FAST=1" tsan ;;
+  *) ONLY=$1; export ONLY; build_run asan17 gnu++17 "-fsanitize=address,undefined -DPET_DECAY_FAST=1" ;;
 esac
 [ $FAIL = 0 ] && echo "== TAT CA CAU HINH DAT ==" || echo "== CO CAU HINH LOI =="
 exit $FAIL
